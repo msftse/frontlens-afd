@@ -1,0 +1,187 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useQueryState } from "nuqs";
+import { Radar } from "lucide-react";
+
+import { useFilters, type ExcludeKey, type FacetKey } from "@/lib/filters/use-filters";
+import { useSummary, useTimeseries } from "@/lib/api/hooks";
+import {
+  BREAKDOWNS,
+  METRIC_CONFIG,
+  scoreMetricAnomaly,
+  worstAnomaly,
+  type MetricKey,
+} from "@/lib/anomaly";
+import { decodeStatus, filterToSearchParams } from "@/lib/filters/model";
+import type { Dimension } from "@/lib/domain/types";
+import { PageHeader } from "@/components/ui/page-header";
+import { MetricStrip } from "@/components/anomalies/metric-strip";
+import { MetricTrend } from "@/components/anomalies/metric-trend";
+import {
+  BreakdownPanel,
+  mergeFilter,
+  pinFilterValue,
+  type BreakdownActions,
+} from "@/components/anomalies/breakdown-panel";
+
+type FiltersApi = ReturnType<typeof useFilters>;
+
+const METRIC_KEYS = METRIC_CONFIG.map((c) => c.key);
+function isMetricKey(s: string | null): s is MetricKey {
+  return s !== null && (METRIC_KEYS as readonly string[]).includes(s);
+}
+
+// Dimension → filter-helper routing. Mirrors the FacetKey / ExcludeKey sets that
+// `useFilters` exposes (deviceType is exclude-only via the helper, so its
+// positive toggle goes through the raw setter).
+const POSITIVE_FACETS: readonly FacetKey[] = [
+  "host",
+  "country",
+  "city",
+  "asnOrg",
+  "clientIp",
+  "cidr",
+  "method",
+  "uaFamily",
+  "pop",
+  "cacheStatus",
+  "ja4",
+  "referer",
+];
+const EXCLUDE_FACETS: readonly ExcludeKey[] = [
+  "host",
+  "country",
+  "city",
+  "asnOrg",
+  "clientIp",
+  "method",
+  "uaFamily",
+  "deviceType",
+  "pop",
+  "cacheStatus",
+  "ja4",
+  "referer",
+];
+const DEVICE_TYPES = ["desktop", "mobile", "tablet", "bot"] as const;
+type DeviceTypeLit = (typeof DEVICE_TYPES)[number];
+
+type FacetDim = FacetKey & Dimension;
+function isFacetKey(d: Dimension): d is FacetDim {
+  return (POSITIVE_FACETS as readonly string[]).includes(d);
+}
+function isExcludeKey(d: Dimension): d is ExcludeKey {
+  return (EXCLUDE_FACETS as readonly string[]).includes(d);
+}
+function isDeviceType(s: string): s is DeviceTypeLit {
+  return (DEVICE_TYPES as readonly string[]).includes(s);
+}
+
+/** Add a row's value as a positive filter facet (mirrors the breakdown dimension). */
+function applyFilter(fh: FiltersApi, dim: Dimension, key: string) {
+  if (dim === "path") {
+    fh.addPath({ mode: "exact", value: key });
+    return;
+  }
+  if (dim === "status") {
+    const s = decodeStatus(key);
+    if (s !== null) fh.toggleStatus(s);
+    return;
+  }
+  if (dim === "deviceType") {
+    if (!isDeviceType(key)) return;
+    fh.setRaw((prev) => {
+      const cur = prev.deviceType;
+      return { deviceType: cur.includes(key) ? cur.filter((v) => v !== key) : [...cur, key] };
+    });
+    return;
+  }
+  if (isFacetKey(dim)) fh.toggle(dim, key);
+}
+
+/** Add a row's value as a negated ("Exclude") facet. */
+function applyExclude(fh: FiltersApi, dim: Dimension, key: string) {
+  if (dim === "path") {
+    fh.addPath({ mode: "exact", value: key, negate: true });
+    return;
+  }
+  if (dim === "status") {
+    const s = decodeStatus(key);
+    if (s !== null) fh.toggleExcludeStatus(s);
+    return;
+  }
+  if (isExcludeKey(dim)) fh.toggleExclude(dim, key);
+}
+
+export default function AnomaliesPage() {
+  const fh = useFilters();
+  const router = useRouter();
+
+  const summary = useSummary(fh.filter);
+  const ts = useTimeseries(fh.filter);
+
+  const anomalies = scoreMetricAnomaly(summary.data);
+  const [metricParam, setMetric] = useQueryState("metric");
+  const selected: MetricKey = isMetricKey(metricParam)
+    ? metricParam
+    : (worstAnomaly(anomalies) ?? "requests");
+
+  const breakdown = BREAKDOWNS[selected];
+  const prefilter = breakdown.prefilter;
+
+  // The page owns all stateful wiring + routing; panels stay presentational and
+  // call back through this typed `on` object. Open-in-* builds a transiently
+  // scoped (prefilter + this row) filter and serializes it to the target view.
+  const on: BreakdownActions = {
+    filter: (dim, key) => applyFilter(fh, dim, key),
+    exclude: (dim, key) => applyExclude(fh, dim, key),
+    openInLogs: (dim, key) =>
+      router.push(
+        "/logs?" +
+          filterToSearchParams(pinFilterValue(mergeFilter(fh.filter, prefilter), dim, key)).toString(),
+      ),
+    openInVisitors: (dim, key) =>
+      router.push(
+        "/visitors?" +
+          filterToSearchParams(pinFilterValue(mergeFilter(fh.filter, prefilter), dim, key)).toString(),
+      ),
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="Anomalies"
+        description="Spot which KPIs moved, see when the spike happened, then decompose what's driving it."
+      />
+
+      <MetricStrip anomalies={anomalies} selected={selected} onSelect={(k) => setMetric(k)} />
+
+      <MetricTrend
+        metric={selected}
+        points={ts.data ?? []}
+        onZoom={(from, to) => fh.setCustomRange(from, to)}
+        loading={ts.isLoading}
+      />
+
+      <div className="flex items-center gap-2 pt-1">
+        <Radar className="size-4 text-accent" />
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">
+          What&apos;s driving it
+        </h2>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {breakdown.dims.map((dim) => (
+          <BreakdownPanel
+            key={`${dim.dimension}:${dim.label}`}
+            metric={selected}
+            dim={dim}
+            filter={fh.filter}
+            prefilter={prefilter}
+            on={on}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

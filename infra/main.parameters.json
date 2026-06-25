@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": { "value": "frontlens" },
+    "containerImage": { "value": "mcr.microsoft.com/k8se/quickstart:latest" },
+    "dataSource": { "value": "mock" },
+    "dataSources": { "value": "mock,loganalytics" },
+    "logAnalyticsWorkspaceId": { "value": "" },
+    "logAnalyticsResourceId": { "value": "" },
+    "clickhouseUrl": { "value": "" },
+    "clickhouseUser": { "value": "default" },
+    "clickhouseDatabase": { "value": "afd" },
+    "clickhousePassword": { "value": "" },
+    "authClientId": { "value": "" },
+    "authClientSecret": { "value": "" },
+    "authIssuer": { "value": "" },
+    "allowedTenantId": { "value": "" },
+    "authSecret": { "value": "" }
+  }
+}
