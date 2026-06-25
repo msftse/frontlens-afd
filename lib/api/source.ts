@@ -6,8 +6,8 @@ import { useSyncExternalStore } from "react";
  * Two related signals about the active data source:
  *
  *  1. The source the BFF *reported* serving on the last `/api/query` response
- *     (`{ data, source }`) — the truthful badge value.
- *  2. The source the user *selected* via the Demo/Live toggle — sent on every
+ *     (`{ data, source }`) - the truthful badge value.
+ *  2. The source the user *selected* via the Demo/Live toggle - sent on every
  *     subsequent request and folded into the react-query cache key so switching
  *     refetches instead of returning another source's cached rows.
  */
@@ -38,7 +38,7 @@ export function useReportedDataSource(): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Selected source (the toggle) — drives request bodies + cache keys.
+// Selected source (the toggle) - drives request bodies + cache keys.
 // Persisted to localStorage so the choice survives navigation between pages and
 // full reloads, instead of resetting to the default every time the route changes.
 // ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ function selSubscribe(cb: () => void): () => void {
   };
 }
 
-/** Reactively read the selected source — use in react-query keys so toggling refetches. */
+/** Reactively read the selected source - use in react-query keys so toggling refetches. */
 export function useSelectedSource(): string | null {
   return useSyncExternalStore(
     selSubscribe,

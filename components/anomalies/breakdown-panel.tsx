@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 // ---------------------------------------------------------------------------
 // Pure filter-scope helpers (shared with the page). `mergeFilter` scopes the
 // breakdown queries with a transient prefilter; it is NEVER serialized to the
-// URL — only an explicit row action (Filter / Exclude / Open in …) mutates state.
+// URL - only an explicit row action (Filter / Exclude / Open in …) mutates state.
 // ---------------------------------------------------------------------------
 
 /** Filter facets that are plain `string[]` and share a key name with a Dimension. */
@@ -48,7 +48,7 @@ function isDeviceType(s: string): s is DeviceTypeLit {
 
 /**
  * Concatenate a transient `prefilter` (e.g. `status:5xx`, `cacheStatus:MISS`)
- * onto the live filter for breakdown queries only. Pure — returns a new Filter,
+ * onto the live filter for breakdown queries only. Pure - returns a new Filter,
  * mutates nothing, and is never written back to the URL.
  */
 export function mergeFilter(base: Filter, patch?: Partial<Filter>): Filter {
@@ -83,7 +83,7 @@ export function pinFilterValue(base: Filter, dim: Dimension, key: string): Filte
     out[dim] = uniq([...(base[dim] as string[]), key]);
     return out;
   }
-  return base; // errorInfo / statusClass have no Filter field — leave scope unchanged.
+  return base; // errorInfo / statusClass have no Filter field - leave scope unchanged.
 }
 
 // ---------------------------------------------------------------------------

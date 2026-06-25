@@ -75,12 +75,12 @@ function CompareCard({
           <div className="mt-2 border-t border-line pt-2">
             <Metric
               label="Top country"
-              value={topCountry ? `${flagEmoji(topCountry.country)} ${topCountry.country}` : "—"}
+              value={topCountry ? `${flagEmoji(topCountry.country)} ${topCountry.country}` : "-"}
             />
             <div className="mt-1 flex items-center justify-between text-xs">
               <span className="text-faint">Top visitor</span>
               <span className="truncate pl-2 font-mono text-[11px] text-foreground">
-                {topVisitor?.clientIp ?? "—"}
+                {topVisitor?.clientIp ?? "-"}
               </span>
             </div>
           </div>

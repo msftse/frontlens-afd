@@ -1,4 +1,4 @@
--- FrontLens — geo/ASN enrichment dictionaries for the Event Hub ingestion path.
+-- FrontLens - geo/ASN enrichment dictionaries for the Event Hub ingestion path.
 --
 -- AFD access logs contain only clientIp. Convert MaxMind GeoLite2 CSVs to
 -- ip_trie dictionaries so ingestion can resolve country/city/lat/lon/ASN by IP.

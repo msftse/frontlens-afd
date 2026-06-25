@@ -33,7 +33,7 @@ export function WhoPanel({
         <Users className="mb-3 size-7 text-faint" />
         <p className="text-sm font-medium text-foreground">Who hit it?</p>
         <p className="mt-1 text-xs text-muted">
-          Select a path on the left to see every visitor that requested it — IP, country, org,
+          Select a path on the left to see every visitor that requested it: IP, country, org,
           device and request counts.
         </p>
       </div>

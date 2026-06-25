@@ -13,7 +13,7 @@ import { iso2ToCountryNames } from "@/lib/datasource/loganalytics/countries";
  * `AzureDiagnostics` table (Category == 'FrontDoorAccessLog'), where every
  * field is a string suffixed `_s`/`_d`/… So we first project a normalized,
  * typed row (see {@link baseProjection}); all later stages reference those
- * clean column names — never the raw `*_s` fields.
+ * clean column names - never the raw `*_s` fields.
  *
  * There is no parameter-binding API for the Logs Query client, so every
  * user-supplied value is escaped via {@link kstr} (KQL string literal) before
@@ -75,8 +75,8 @@ export function baseProjection(): string {
     "    deviceType = case(userAgent matches regex @'(?i)bot|crawler|spider|curl|wget|python-requests', 'bot',",
     "                      userAgent matches regex @'(?i)mobile|android|iphone|ipod', 'mobile',",
     "                      userAgent matches regex @'(?i)ipad|tablet', 'tablet', 'desktop')",
-    // Fields AFD logs don't carry — kept as constants so projections stay uniform.
-    "| extend asn = 0, asnOrg = '—', uaFamily = '', uaOs = ''",
+    // Fields AFD logs don't carry - kept as constants so projections stay uniform.
+    "| extend asn = 0, asnOrg = '-', uaFamily = '', uaOs = ''",
   ].join("\n");
 }
 
@@ -165,7 +165,7 @@ export function timeConditions(from: Date, to: Date): string[] {
  * Facet `where` predicates (host, country, clientIp, path, status, …). These
  * reference the CLEAN names introduced by {@link baseProjection} (e.g. `host`,
  * `clientIp`, `countryName`, `path`, `statusClass`), so callers MUST emit them
- * AFTER baseProjection — not in the same pre-projection `where` as the time
+ * AFTER baseProjection - not in the same pre-projection `where` as the time
  * bound. Mirrors `applyFilter` in clickhouse/sql.ts.
  */
 export function facetConditions(f: Filter): string[] {

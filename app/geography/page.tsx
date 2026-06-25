@@ -49,7 +49,7 @@ export default function GeographyPage() {
     <div className="space-y-4">
       <PageHeader
         title="Geography"
-        description="Where your traffic comes from — by country, city and network. Click anywhere to filter."
+        description="Where your traffic comes from, by country, city and network. Click anywhere to filter."
         actions={
           <div className="flex items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5">
             {METRICS.map((m) => (

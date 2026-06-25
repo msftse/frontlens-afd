@@ -1,6 +1,6 @@
 /**
  * Generate REAL Azure Front Door traffic so the Log Analytics workspace fills
- * with genuine `FrontDoorAccessLog` rows — the data the dashboard's "Live" mode
+ * with genuine `FrontDoorAccessLog` rows - the data the dashboard's "Live" mode
  * queries. This drives requests against YOUR OWN test AFD endpoint to exercise
  * the edge (and, optionally, the WAF) and produce real, non-mock telemetry.
  *
@@ -20,7 +20,7 @@
  *   --timeout <ms>      Per-request timeout            (default 10000).
  *
  * Logs land in Log Analytics a few minutes after the requests (ingestion lag),
- * so wait ~5–15 min before checking "Live" mode. Keep volume modest — the e2e
+ * so wait ~5–15 min before checking "Live" mode. Keep volume modest - the e2e
  * workspace has a 1 GB/day cap.
  *
  * curl alternative (no Node): for HOST set above,
@@ -29,7 +29,7 @@
 
 // ---- request catalogue --------------------------------------------------------
 
-/** Realistic site paths (weighted) — most return 200/404 from the test origin. */
+/** Realistic site paths (weighted) - most return 200/404 from the test origin. */
 const PATHS: { path: string; weight: number; method?: string }[] = [
   { path: "/", weight: 30 },
   { path: "/about", weight: 4 },
@@ -54,7 +54,7 @@ const PATHS: { path: string; weight: number; method?: string }[] = [
   { path: "/robots.txt", weight: 2 },
 ];
 
-/** Paths that should 404 / 4xx at the origin — adds status-class variety. */
+/** Paths that should 404 / 4xx at the origin - adds status-class variety. */
 const NOT_FOUND: { path: string; weight: number }[] = [
   { path: "/old-landing-page", weight: 3 },
   { path: "/api/legacy/quote", weight: 3 },
@@ -67,7 +67,7 @@ const NOT_FOUND: { path: string; weight: number }[] = [
  * WAF smoke-test probes. These intentionally look malicious so AFD's WAF
  * (Prevention mode) blocks them with 403 and writes a WAFLog row. They target
  * ONLY the user's own test endpoint to validate the WAF and generate security
- * telemetry — not a real system. Kept tiny and disabled via --no-waf.
+ * telemetry - not a real system. Kept tiny and disabled via --no-waf.
  */
 const WAF_PROBES: { path: string; weight: number }[] = [
   { path: "/?q=%3Cscript%3Ealert(1)%3C/script%3E", weight: 1 },
@@ -249,7 +249,7 @@ async function main() {
   await Promise.all(Array.from({ length: cfg.concurrency }, worker));
 
   const secs = (Date.now() - started) / 1000;
-  console.log(`\n✓ done — ${sent} requests in ${secs.toFixed(1)}s (${(sent / secs).toFixed(0)} rps)`);
+  console.log(`\n✓ done - ${sent} requests in ${secs.toFixed(1)}s (${(sent / secs).toFixed(0)} rps)`);
   const codes = [...status.entries()].sort((a, b) => a[0] - b[0]);
   for (const [code, n] of codes) console.log(`    ${code}  ${n}`);
   if (errors) console.log(`    err  ${errors} (timeout/network)`);

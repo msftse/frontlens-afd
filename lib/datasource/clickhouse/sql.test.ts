@@ -20,7 +20,7 @@ function compile(input: Record<string, unknown>) {
   return { where: s.where(), params: Object.values(s.params) };
 }
 
-describe("applyFilter — parameterization & semantics", () => {
+describe("applyFilter - parameterization & semantics", () => {
   const { where, params } = compile({
     range: "7d",
     host: ["nadav.com"],
@@ -62,7 +62,7 @@ describe("applyFilter — parameterization & semantics", () => {
   });
 });
 
-describe("applyFilter — negation (not / Exclude)", () => {
+describe("applyFilter - negation (not / Exclude)", () => {
   it("emits NOT IN for negated string facets, as array params", () => {
     const { where, params } = compile({
       range: "24h",
@@ -140,7 +140,7 @@ describe("canUseTrafficRollup", () => {
     expect(canUseTrafficRollup(filterSchema.parse({ status: ["5xx"] }))).toBe(true);
   });
 
-  it("rejects any negation — the rollup can't express exclusions", () => {
+  it("rejects any negation - the rollup can't express exclusions", () => {
     expect(canUseTrafficRollup(filterSchema.parse({ not: { host: ["a.com"] } }))).toBe(false);
     expect(canUseTrafficRollup(filterSchema.parse({ not: { country: ["US"] } }))).toBe(false);
     expect(canUseTrafficRollup(filterSchema.parse({ not: { status: ["4xx"] } }))).toBe(false);

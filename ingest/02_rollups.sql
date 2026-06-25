@@ -1,4 +1,4 @@
--- FrontLens — production rollups (AggregatingMergeTree + materialized views).
+-- FrontLens - production rollups (AggregatingMergeTree + materialized views).
 --
 -- The adapter can query raw `access_logs` (ClickHouse handles billions of rows
 -- with partition pruning), but at very high volume these pre-aggregations make

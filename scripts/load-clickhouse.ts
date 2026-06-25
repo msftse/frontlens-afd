@@ -52,7 +52,7 @@ async function main() {
   console.log("→ truncating + inserting…");
   await client.command({ query: "TRUNCATE TABLE IF EXISTS afd.access_logs" });
   // Rollups are fed by materialized views that fire on each INSERT, so clear
-  // them too — otherwise re-running the loader double-counts aggregated rows.
+  // them too - otherwise re-running the loader double-counts aggregated rows.
   await client.command({ query: "TRUNCATE TABLE IF EXISTS afd.rollup_traffic_1m" });
   await client.command({ query: "TRUNCATE TABLE IF EXISTS afd.rollup_paths_1h" });
 
@@ -68,7 +68,7 @@ async function main() {
   const [{ c }] = await (
     await client.query({ query: "SELECT count() AS c FROM afd.access_logs", format: "JSONEachRow" })
   ).json<{ c: string }>();
-  console.log(`\n✓ done — ${Number(c).toLocaleString()} rows in afd.access_logs`);
+  console.log(`\n✓ done - ${Number(c).toLocaleString()} rows in afd.access_logs`);
   await client.close();
 }
 

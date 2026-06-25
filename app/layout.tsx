@@ -13,9 +13,9 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "FrontLens — Azure Front Door Analytics",
+  title: "FrontLens: Azure Front Door Analytics",
   description:
-    "A better analytics & log explorer for Azure Front Door: filter by country, visitor, and URL path — and see who used what.",
+    "A better analytics & log explorer for Azure Front Door: filter by country, visitor, and URL path, and see who used what.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

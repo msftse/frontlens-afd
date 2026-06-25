@@ -188,7 +188,7 @@ export function LogDetail({
           {r.originName}
         </Field>
         <Field label="Origin status" mono>
-          {r.originStatus || "—"}
+          {r.originStatus || "-"}
         </Field>
       </Group>
 

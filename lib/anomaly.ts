@@ -7,9 +7,9 @@ import { fmtDelta } from "@/lib/format";
  * Anomaly model for the eight Overview KPIs. Detection is intentionally simple
  * and client-side:
  *
- *   1. Period-over-period — flag a KPI when its `summary.delta` (relative change
+ *   1. Period-over-period - flag a KPI when its `summary.delta` (relative change
  *      vs the previous equal-length window) breaches a per-metric threshold.
- *   2. In-window spikes — a robust median/MAD outlier pass over the existing
+ *   2. In-window spikes - a robust median/MAD outlier pass over the existing
  *      timeseries marks *when* it happened (for the trend highlight + zoom).
  *
  * No backend is involved: every input here already comes from `/api/query`.
@@ -56,7 +56,7 @@ export interface MetricAnomaly {
   delta?: number;
   direction: "up" | "down" | "flat";
   anomalous: boolean;
-  /** 0..1 magnitude relative to the metric's threshold — used to rank the worst mover. */
+  /** 0..1 magnitude relative to the metric's threshold - used to rank the worst mover. */
   severity: number;
   goodWhenUp: boolean;
   /** Plain-language one-liner for the card / header. */

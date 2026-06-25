@@ -67,7 +67,7 @@ export function compilePathPattern(p: PathPattern): PathPredicate {
     };
   }
 
-  // prefix (default) — match against the path and the host+path
+  // prefix (default) - match against the path and the host+path
   return {
     negate,
     test: (host, path) =>
@@ -151,7 +151,7 @@ export function matchesFilter(r: AccessLogRecord, f: Filter, ctx: MatchContext):
   if (!statusMatches(r.status, f.status)) return false;
 
   // Negated facets ("Exclude"): drop the record if it matches ANY non-empty
-  // `not.<facet>` — the positive rule, negated (logical AND of "NOT in set").
+  // `not.<facet>` - the positive rule, negated (logical AND of "NOT in set").
   const n = f.not;
   if (n) {
     if (n.host?.length && n.host.includes(r.host)) return false;

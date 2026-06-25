@@ -29,7 +29,7 @@ function buildOption(
       textStyle: { color: "#1d1f24", fontSize: 12 },
       formatter: (p: { name?: string }) => {
         const row = p.name ? lookup.get(p.name) : undefined;
-        if (!row) return `<b>${p.name ?? "—"}</b><br/><span style="color:#8a92a0">no traffic</span>`;
+        if (!row) return `<b>${p.name ?? "-"}</b><br/><span style="color:#8a92a0">no traffic</span>`;
         return [
           `<b>${row.countryName}</b> <span style="color:#8a92a0">${row.country}</span>`,
           `Requests: <b>${fmtInt(row.requests)}</b> (${fmtPct(row.share)})`,

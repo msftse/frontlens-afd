@@ -49,7 +49,7 @@ export interface LogsOptions {
 
 /**
  * The single contract every backend implements. The UI never imports a concrete
- * source — only this interface — so swapping mock → ClickHouse → Log Analytics
+ * source, only this interface, so swapping mock → ClickHouse → Log Analytics
  * touches one factory.
  */
 export interface DataSource {
@@ -70,7 +70,7 @@ export interface DataSource {
   /** Path Explorer: aggregate by host+path (the headline feature). */
   paths(filter: Filter, opts?: PathExplorerOptions): Promise<{ rows: PathRow[]; total: number }>;
 
-  /** "Who hit this path" — visitors for a given host+path under the filter. */
+  /** "Who hit this path" - visitors for a given host+path under the filter. */
   pathVisitors(
     filter: Filter,
     host: string,

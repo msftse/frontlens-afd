@@ -1,4 +1,4 @@
-// FrontLens — self-contained END-TO-END test: a Premium-scale Azure Front Door
+// FrontLens - self-contained END-TO-END test: a Premium-scale Azure Front Door
 // fronting a live origin, with access/WAF logs streamed to Log Analytics and
 // Event Hubs (the same ingestion transport the production pipeline consumes).
 //
@@ -49,7 +49,7 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 }
 
 // ---------------------------------------------------------------------------
-// Event Hubs — Front Door diagnostic stream (Kafka-compatible for ClickHouse).
+// Event Hubs - Front Door diagnostic stream (Kafka-compatible for ClickHouse).
 // Optional (enableEventHub): only needed to exercise the Phase-2 ClickHouse/
 // Kafka ingestion path. The dashboard's Live mode reads Log Analytics instead.
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ resource ehDiagRule 'Microsoft.EventHub/namespaces/authorizationRules@2024-01-01
 }
 
 // ---------------------------------------------------------------------------
-// Origin — a tiny public "hello world" Container App behind HTTPS ingress.
+// Origin - a tiny public "hello world" Container App behind HTTPS ingress.
 // ---------------------------------------------------------------------------
 resource caEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: '${namePrefix}-env'
@@ -123,7 +123,7 @@ resource originApp 'Microsoft.App/containerApps@2024-03-01' = {
 }
 
 // ---------------------------------------------------------------------------
-// WAF policy (Premium tier — enables Microsoft-managed rule sets).
+// WAF policy (Premium tier - enables Microsoft-managed rule sets).
 // ---------------------------------------------------------------------------
 resource waf 'Microsoft.Network/FrontDoorWebApplicationFirewallPolicies@2024-02-01' = {
   name: '${namePrefix}waf${suffix}'
@@ -151,7 +151,7 @@ resource waf 'Microsoft.Network/FrontDoorWebApplicationFirewallPolicies@2024-02-
 }
 
 // ---------------------------------------------------------------------------
-// Azure Front Door — PREMIUM profile.
+// Azure Front Door - PREMIUM profile.
 // ---------------------------------------------------------------------------
 resource profile 'Microsoft.Cdn/profiles@2024-02-01' = {
   name: '${namePrefix}-afd'
@@ -245,7 +245,7 @@ resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2024-02-01' = {
 }
 
 // Fan Front Door's access / health-probe / WAF logs to Log Analytics (for KQL
-// verification) and — when enableEventHub is set — also to Event Hubs (the
+// verification) and, when enableEventHub is set, also to Event Hubs (the
 // Phase-2 ClickHouse/Kafka ingestion transport).
 resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: 'afd-diagnostics'

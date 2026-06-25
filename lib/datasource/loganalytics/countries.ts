@@ -4,7 +4,7 @@
  * Azure Front Door access logs (`clientCountry_s`) and the KQL
  * `geo_info_from_ip_address()` function both report countries by **full name**
  * ("Israel", "Netherlands", "United States"), whereas FrontLens keys the
- * `country` filter — and `GeoRow.country` / the world map — on the **ISO-2
+ * `country` filter, and `GeoRow.country` / the world map, on the **ISO-2
  * code** ("IL", "NL", "US"). The Log Analytics adapter uses this table to
  * translate between the two so live mode matches demo mode exactly.
  *

@@ -185,7 +185,7 @@ describe("base + geo projections", () => {
     expect(b).toContain("ms = todouble(timeTaken_s) * 1000.0");
     expect(b).toContain("path = iff(isempty(_path)");
     expect(b).toContain("statusClass = case(");
-    expect(b).toContain("asnOrg = '—'");
+    expect(b).toContain("asnOrg = '-'");
   });
   it("geo projection derives city/lat/lon from geo_info", () => {
     const g = geoProjection();

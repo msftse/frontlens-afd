@@ -1,4 +1,4 @@
--- FrontLens — ingest Azure Front Door access logs from Azure Event Hubs.
+-- FrontLens - ingest Azure Front Door access logs from Azure Event Hubs.
 --
 -- AFD → Diagnostic Setting → Event Hub. Event Hubs exposes a Kafka-compatible
 -- endpoint, so ClickHouse's Kafka engine can consume it directly.

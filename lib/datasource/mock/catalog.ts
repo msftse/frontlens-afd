@@ -157,13 +157,13 @@ export const USER_AGENTS: UaDef[] = [
     ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0" },
   { family: "Safari", os: "iPadOS", device: "tablet", weight: 3, ja4: "t13d2014h2_a09f3c656075_7c91a0f4b2e1",
     ua: "Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1" },
-  { family: "Googlebot", os: "—", device: "bot", weight: 3, ja4: "t13d301000_c34a54f7b9d2_000000000000",
+  { family: "Googlebot", os: "-", device: "bot", weight: 3, ja4: "t13d301000_c34a54f7b9d2_000000000000",
     ua: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
-  { family: "bingbot", os: "—", device: "bot", weight: 2, ja4: "t13d301000_c34a54f7b9d2_111111111111",
+  { family: "bingbot", os: "-", device: "bot", weight: 2, ja4: "t13d301000_c34a54f7b9d2_111111111111",
     ua: "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" },
-  { family: "curl", os: "—", device: "bot", weight: 2, ja4: "t13d000000_000000000000_222222222222",
+  { family: "curl", os: "-", device: "bot", weight: 2, ja4: "t13d000000_000000000000_222222222222",
     ua: "curl/8.5.0" },
-  { family: "python-requests", os: "—", device: "bot", weight: 2, ja4: "t13d000000_000000000000_333333333333",
+  { family: "python-requests", os: "-", device: "bot", weight: 2, ja4: "t13d000000_000000000000_333333333333",
     ua: "python-requests/2.31.0" },
 ];
 

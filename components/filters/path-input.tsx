@@ -37,7 +37,7 @@ export function PathInput({ onAdd }: { onAdd: (p: PathPattern) => void }) {
         onKeyDown={(e) => {
           if (e.key === "Enter") submit();
         }}
-        placeholder="Filter by path — nadav.com/api, /api/*, regex…"
+        placeholder="Filter by path: nadav.com/api, /api/*, regex…"
         className="h-full w-64 bg-transparent px-2 text-xs text-foreground outline-none placeholder:text-faint"
       />
       <select

@@ -87,7 +87,7 @@ function pathCondition(s: SqlBuilder, p: PathPattern): string {
     return `(match(path, ${ph}) OR match(hostPath, ${ph}))`;
   }
 
-  // exact / prefix — match against the path and the host+path (mirrors match.ts)
+  // exact / prefix - match against the path and the host+path (mirrors match.ts)
   const needle = s.param("String", value.toLowerCase());
   return p.mode === "exact"
     ? `(lowerUTF8(path) = ${needle} OR lowerUTF8(hostPath) = ${needle})`
@@ -127,7 +127,7 @@ export function applyFilter(s: SqlBuilder, f: Filter, from: Date, to: Date) {
   }
 
   // Negated facets ("Exclude"): mirror the positive facets, negated (NOT IN /
-  // NOT (...)). The minute rollup can't express these — see canUseTrafficRollup.
+  // NOT (...)). The minute rollup can't express these - see canUseTrafficRollup.
   const n = f.not;
   if (n) {
     if (n.host?.length) s.notInList("host", n.host);
@@ -189,7 +189,7 @@ export function applyFilter(s: SqlBuilder, f: Filter, from: Date, to: Date) {
  * forces a raw-table scan instead.
  */
 export function canUseTrafficRollup(f: Filter): boolean {
-  // Any negation ("Exclude") forces a raw scan — the rollup can't express it.
+  // Any negation ("Exclude") forces a raw scan - the rollup can't express it.
   if (f.not && Object.values(f.not).some((arr) => arr && arr.length > 0)) {
     return false;
   }

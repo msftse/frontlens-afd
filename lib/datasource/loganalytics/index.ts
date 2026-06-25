@@ -79,10 +79,10 @@ const PATHS_ORDER: Record<string, string> = {
 /**
  * Live data source backed by Azure Log Analytics (Kusto). Reads Azure Front
  * Door access logs straight from the workspace the AFD diagnostic setting
- * streams to — no extra database or always-on compute.
+ * streams to - no extra database or always-on compute.
  *
  * Auth: a user-assigned managed identity in Azure (set `AZURE_CLIENT_ID`), or
- * the Azure CLI credential locally — both via `DefaultAzureCredential`. The
+ * the Azure CLI credential locally - both via `DefaultAzureCredential`. The
  * workspace id comes from `LOG_ANALYTICS_WORKSPACE_ID`.
  *
  * Every query is bounded by `TimeGenerated` and projects a minimal set of
@@ -103,7 +103,7 @@ export class LogAnalyticsDataSource implements DataSource {
     const id = process.env.LOG_ANALYTICS_WORKSPACE_ID;
     if (!id) {
       throw new Error(
-        "LOG_ANALYTICS_WORKSPACE_ID is not set — cannot query the live data source.",
+        "LOG_ANALYTICS_WORKSPACE_ID is not set; cannot query the live data source.",
       );
     }
     return id;
@@ -406,7 +406,7 @@ export class LogAnalyticsDataSource implements DataSource {
           countryName: iso2ToCountryName(iso2) || str(r.countryName),
           city: str(r.city),
           asn: 0,
-          asnOrg: "—",
+          asnOrg: "-",
           uaFamily: "",
           deviceType: (str(r.deviceType) || "desktop") as VisitorRow["deviceType"],
           ja4: str(r.ja4),
@@ -566,7 +566,7 @@ function mapRecord(r: Record<string, unknown>): AccessLogRecord {
     latitude: num(r.latitude),
     longitude: num(r.longitude),
     asn: 0,
-    asnOrg: "—",
+    asnOrg: "-",
     userAgent: str(r.userAgent),
     uaFamily: "",
     uaOs: "",

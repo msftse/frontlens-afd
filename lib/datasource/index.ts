@@ -10,9 +10,9 @@ import { LogAnalyticsDataSource } from "@/lib/datasource/loganalytics";
  * deployment ("demo" mock + a real source), and the BFF picks per request, so
  * instances are cached PER KIND rather than as a single global singleton.
  *
- *  - `mock`         — in-memory synthetic generator (always available).
- *  - `loganalytics` — live Azure Front Door logs via Log Analytics (Kusto).
- *  - `clickhouse`   — columnar backend (Phase 2 / high volume).
+ *  - `mock`         - in-memory synthetic generator (always available).
+ *  - `loganalytics` - live Azure Front Door logs via Log Analytics (Kusto).
+ *  - `clickhouse`   - columnar backend (Phase 2 / high volume).
  *
  * Which kinds are *selectable* at runtime is controlled by `AFD_SOURCES`
  * (comma list, default "mock"). `AFD_DATASOURCE` names the default kind.
@@ -103,7 +103,7 @@ export function availableSourceKinds(): SourceKind[] {
  * Resolve a requested source name (from the UI toggle / BFF body) to a concrete,
  * *allowed* kind. Falls back to the default (or mock if the default itself is
  * unconfigured) when the request is missing, unknown, not in the allowlist, or
- * not configured — so a response always truthfully reports the source that
+ * not configured - so a response always truthfully reports the source that
  * actually served it, instead of 500-ing on a misconfiguration.
  */
 export function resolveSourceKind(requested?: string | null): SourceKind {

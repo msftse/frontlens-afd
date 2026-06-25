@@ -8,7 +8,7 @@ import { filterSchema } from "@/lib/filters/model";
 import type { Dimension } from "@/lib/domain/types";
 
 /**
- * Single BFF dispatcher. The browser never talks to a data source directly —
+ * Single BFF dispatcher. The browser never talks to a data source directly,
  * it POSTs { resource, filter, options } here, where credentials (later: Azure /
  * ClickHouse) stay server-side. Route handlers are dynamic by default in Next 16.
  */

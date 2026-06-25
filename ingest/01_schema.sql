@@ -1,4 +1,4 @@
--- FrontLens — ClickHouse schema for Azure Front Door access logs.
+-- FrontLens - ClickHouse schema for Azure Front Door access logs.
 -- The analytical backbone for high volume (>50M req/day → billions of rows / 90d).
 --
 -- Geo/ASN enrichment is written as columns at INGESTION time (raw AFD logs have

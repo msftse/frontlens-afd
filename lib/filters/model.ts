@@ -39,9 +39,9 @@ export const statusFilterSchema = z.union([
 export type StatusFilter = z.infer<typeof statusFilterSchema>;
 
 /**
- * Negated facets — the Cloudflare-style "Exclude". A record matches the filter
+ * Negated facets - the Cloudflare-style "Exclude". A record matches the filter
  * only if it does NOT match any of these. Same value types as the positive
- * facets (deviceType kept as plain strings here — it's only an exclusion test).
+ * facets (deviceType kept as plain strings here - it's only an exclusion test).
  * Serialized to the URL as `n_<key>` params.
  */
 export const notFilterSchema = z.object({
@@ -70,7 +70,7 @@ export const filterSchema = z.object({
   // Host / domain
   host: z.array(z.string()).default([]),
 
-  // Path patterns — the headline capability (e.g. nadav.com/api, /api/*, regex)
+  // Path patterns - the headline capability (e.g. nadav.com/api, /api/*, regex)
   path: z.array(pathPatternSchema).default([]),
 
   // Geography (derived via enrichment)
@@ -117,7 +117,7 @@ export function resolveTimeRange(f: Filter, now = new Date()): { from: Date; to:
 }
 
 // ----------------------------------------------------------------------------
-// URL (de)serialization — compact, human-readable query strings.
+// URL (de)serialization - compact, human-readable query strings.
 // Path patterns encode as `mode:value` (optionally `!mode:value` for negate).
 // ----------------------------------------------------------------------------
 
@@ -264,7 +264,7 @@ export function filterFromSearchParams(sp: URLSearchParams | Record<string, stri
   return parsed.success ? parsed.data : emptyFilter();
 }
 
-/** Count active (non-time) filter facets — for the UI "N filters" badge. */
+/** Count active (non-time) filter facets - for the UI "N filters" badge. */
 export function countActiveFacets(f: Filter): number {
   let n = 0;
   for (const key of ARRAY_KEYS) n += (f[key] as string[]).length;

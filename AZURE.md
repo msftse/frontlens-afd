@@ -1,7 +1,7 @@
 # Deploying FrontLens to Azure
 
 This guide provisions FrontLens with the Azure CLI and Bicep. Every value in
-angle brackets (`<…>`) is a placeholder — substitute your own subscription,
+angle brackets (`<…>`) is a placeholder; substitute your own subscription,
 resource groups, and names.
 
 > You don't need any of this to try FrontLens. `npm run dev` runs the full UI on
@@ -9,7 +9,7 @@ resource groups, and names.
 
 ## Prerequisites
 
-- An Azure subscription and the [Azure CLI](https://learn.microsoft.com/cli/azure/) — run `az login`
+- An Azure subscription and the [Azure CLI](https://learn.microsoft.com/cli/azure/); run `az login`
 - Bicep tooling: `az bicep install`
 - A resource group: `az group create -n <resource-group> -l <region>`
 
@@ -18,12 +18,12 @@ resource groups, and names.
 | Stack | File | Provisions |
 | --- | --- | --- |
 | **Dashboard app** | [infra/main.bicep](infra/main.bicep) | The FrontLens container (UI + BFF), a Container Apps environment, an Azure Container Registry, a user-assigned managed identity, and Log Analytics for the app's own logs. |
-| **Front Door + log source** *(optional)* | [infra/afd-e2e.bicep](infra/afd-e2e.bicep) | A self-contained Premium Azure Front Door + WAF in front of a "hello world" origin, streaming access / WAF / health-probe logs to Log Analytics — a ready-made source for **Live** mode. |
+| **Front Door + log source** *(optional)* | [infra/afd-e2e.bicep](infra/afd-e2e.bicep) | A self-contained Premium Azure Front Door + WAF in front of a "hello world" origin, streaming access / WAF / health-probe logs to Log Analytics, a ready-made source for **Live** mode. |
 
 Deploy only the dashboard if you already have a Front Door whose access logs land
 in a Log Analytics workspace. Deploy both to stand up an end-to-end demo.
 
-## Stack 1 — the dashboard app
+## Stack 1: the dashboard app
 
 The image is built in the cloud with ACR Tasks, so no local Docker is required.
 
@@ -50,7 +50,7 @@ az containerapp update -g "$RG" -n <container-app> \
 
 The app defaults to the **Demo** (`mock`) source, so it runs with no backend.
 
-## Stack 2 — Front Door + a live log source
+## Stack 2: Front Door + a live log source
 
 ```bash
 az deployment group create -g <e2e-resource-group> -f infra/afd-e2e.bicep
@@ -59,7 +59,7 @@ az deployment group create -g <e2e-resource-group> -f infra/afd-e2e.bicep
 This creates a Premium Front Door, a WAF policy in Prevention mode, an origin
 Container App, and a diagnostic setting that streams logs to a Log Analytics
 workspace. An Event Hubs stream (the Phase-2 ClickHouse/Kafka ingestion transport)
-is **off by default** — redeploy with `-p enableEventHub=true` to add it.
+is **off by default**; redeploy with `-p enableEventHub=true` to add it.
 
 The deployment prints the Front Door endpoint as an output. Drive some traffic at
 it so there are logs to explore:
@@ -81,8 +81,8 @@ container app and granting it read access to the workspace:
 
 The identity needs the built-in **Log Analytics Reader** role on the workspace;
 [infra/modules/log-analytics-reader.bicep](infra/modules/log-analytics-reader.bicep)
-assigns it. `main.bicep` takes the workspace GUID and resource ID as parameters —
-set them in [infra/main.parameters.json](infra/main.parameters.json) or pass them
+assigns it. `main.bicep` takes the workspace GUID and resource ID as parameters.
+Set them in [infra/main.parameters.json](infra/main.parameters.json) or pass them
 with `-p` at deploy time. Leave them empty to keep Live mode off.
 
 ## Tear down
@@ -94,7 +94,7 @@ az group delete -n <resource-group> --yes --no-wait       # dashboard app + ACR
 
 ## Cost notes
 
-- The **Front Door + WAF** stack is the expensive half — a Premium profile with
+- The **Front Door + WAF** stack is the expensive half: a Premium profile with
   managed WAF rule sets bills continuously. Tear it down when you are not actively
   exercising the live log pipeline.
 - The **dashboard** is right-sized to 0.5 vCPU / 1 GiB and scales to zero, so it

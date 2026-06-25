@@ -3,7 +3,7 @@
  *
  * `AccessLogRecord` mirrors the Azure Front Door Standard/Premium *access log*
  * schema (table `AFDAccessLog`) plus the enrichment we add ourselves, because
- * AFD logs contain NO country/city/ASN field and NO user identity — those are
+ * AFD logs contain NO country/city/ASN field and NO user identity - those are
  * derived from `clientIp` via geo-IP/ASN lookup at ingestion time.
  *
  * Every data source (mock, ClickHouse, Log Analytics) returns this exact shape.
@@ -24,7 +24,7 @@ export type CacheStatus =
   | "N/A";
 
 export interface AccessLogRecord {
-  /** Unique reference (X-Azure-Ref) — joins AFD logs to app logs. */
+  /** Unique reference (X-Azure-Ref) - joins AFD logs to app logs. */
   trackingRef: string;
   /** Event time (ISO-8601, UTC). */
   timestamp: string;
@@ -176,7 +176,7 @@ export interface PathRow {
   lastSeen: string;
 }
 
-/** A visitor (client IP) — the "who". */
+/** A visitor (client IP) - the "who". */
 export interface VisitorRow {
   clientIp: string;
   country: string;

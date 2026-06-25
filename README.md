@@ -1,11 +1,11 @@
 # FrontLens
 
-**A log explorer for [Azure Front Door](https://learn.microsoft.com/azure/frontdoor/) access logs** — filter by country, visitor, and URL path, and see *who used what*.
+**A log explorer for [Azure Front Door](https://learn.microsoft.com/azure/frontdoor/) access logs**: filter by country, visitor, and URL path, and see *who used what*.
 
 Front Door access logs carry no identity or geo fields, so FrontLens treats
 `clientIp` as the subject and enriches it (country, city, ASN) at query time.
 Every view is a shareable URL, every list exports to CSV, and the whole thing runs
-on an in-memory mock data source out of the box — no database, no Azure account,
+on an in-memory mock data source out of the box: no database, no Azure account,
 no setup.
 
 Built with Next.js 16 (App Router), React 19, TanStack Query/Table/Virtual,
@@ -13,12 +13,12 @@ Recharts + ECharts, Tailwind v4, and zod. SSO via Microsoft Entra ID is optional
 
 ## Highlights
 
-- **Path explorer** — match by prefix, glob, or regex (`/api/*`, `^/v1/(quote|news)$`) and see the visitors behind each path.
-- **Visitor view** — drill from an IP to its countries, paths, user agents, and request history.
-- **Geography** — country and city breakdowns on an interactive world map.
-- **Anomalies** — KPI-driven spike detection with one-click drill-down into the dimension that moved.
-- **Logs** — a virtualized raw-log table with a detail inspector.
-- **Demo / Live** — flip between deterministic synthetic data and real Front Door logs from the same UI.
+- **Path explorer**: match by prefix, glob, or regex (`/api/*`, `^/v1/(quote|news)$`) and see the visitors behind each path.
+- **Visitor view**: drill from an IP to its countries, paths, user agents, and request history.
+- **Geography**: country and city breakdowns on an interactive world map.
+- **Anomalies**: KPI-driven spike detection with one-click drill-down into the dimension that moved.
+- **Logs**: a virtualized raw-log table with a detail inspector.
+- **Demo / Live**: flip between deterministic synthetic data and real Front Door logs from the same UI.
 
 ## Architecture
 
@@ -29,22 +29,22 @@ Browser ──POST /api/query──▶ BFF route ──▶ DataSource ──▶ 
 
 Three contracts keep the app small and swappable:
 
-- **One filter model** ([lib/filters/model.ts](lib/filters/model.ts)) — a single zod
+- **One filter model** ([lib/filters/model.ts](lib/filters/model.ts)): a single zod
   schema is the source of truth for the UI, the URL (every view is a shareable
   link), the BFF, and each adapter. Mock matching semantics live in
   [lib/filters/match.ts](lib/filters/match.ts); the ClickHouse SQL compiler in
   [lib/datasource/clickhouse/sql.ts](lib/datasource/clickhouse/sql.ts) mirrors them.
-- **One backend contract** ([lib/datasource/types.ts](lib/datasource/types.ts)) —
+- **One backend contract** ([lib/datasource/types.ts](lib/datasource/types.ts)):
   swapping data sources touches only the factory
   ([lib/datasource/index.ts](lib/datasource/index.ts)); the UI never changes.
-- **One BFF dispatcher** ([app/api/query/route.ts](app/api/query/route.ts)) — the
+- **One BFF dispatcher** ([app/api/query/route.ts](app/api/query/route.ts)): the
   browser never holds backend credentials, and all user input is parameterized.
 
 ## Quick start
 
 ```bash
 npm install
-npm run dev          # in-memory mock data source — no DB or cloud needed
+npm run dev          # in-memory mock data source: no DB or cloud needed
 ```
 
 Open http://localhost:3000.
@@ -55,16 +55,16 @@ FrontLens serves three data sources behind one interface, selected by
 `AFD_DATASOURCE` and surfaced as a **Demo / Live** header toggle whenever more
 than one is listed in `AFD_SOURCES`.
 
-### Demo — `mock`
+### Demo (`mock`)
 
 Deterministic in-memory data with realistic countries, paths, ASNs, and user
 agents. The default; no dependencies.
 
-### Live — `loganalytics`
+### Live (`loganalytics`)
 
 Real Azure Front Door access logs queried straight from the Log Analytics
 workspace your AFD diagnostic setting streams to. This adds **no extra database or
-always-on compute** — only a read-only RBAC grant.
+always-on compute**; just a read-only RBAC grant.
 
 ```bash
 az login
@@ -84,10 +84,10 @@ The BFF picks the source per request from the toggle and always reports back the
 source that actually served the data; if Live isn't configured it safely falls
 back to Demo. In Azure, the app authenticates to Log Analytics with a
 user-assigned managed identity (`AZURE_CLIENT_ID`) granted **Log Analytics
-Reader** on the workspace. Because AFD logs carry no ASN, that column reads `—` in
+Reader** on the workspace. Because AFD logs carry no ASN, that column reads `-` in
 Live mode; country, city, and coordinates come from KQL's `geo_info_from_ip_address`.
 
-### ClickHouse — `clickhouse`
+### ClickHouse (`clickhouse`)
 
 For high-volume, self-hosted ingestion.
 
@@ -134,9 +134,9 @@ npm run test:run
 [Dockerfile](Dockerfile) builds a minimal image for Azure Container Apps. Two
 Bicep stacks under [infra/](infra/) provision everything:
 
-- [infra/main.bicep](infra/main.bicep) — the FrontLens app (Container Apps env,
+- [infra/main.bicep](infra/main.bicep): the FrontLens app (Container Apps env,
   ACR, managed identity, Log Analytics, and the container app itself).
-- [infra/afd-e2e.bicep](infra/afd-e2e.bicep) — an optional, self-contained Azure
+- [infra/afd-e2e.bicep](infra/afd-e2e.bicep): an optional, self-contained Azure
   Front Door (Premium) + WAF + origin that streams real access/WAF logs to Log
   Analytics, for exercising Live mode end-to-end.
 

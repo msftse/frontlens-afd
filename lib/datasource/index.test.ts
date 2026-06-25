@@ -7,7 +7,7 @@ import {
 } from "@/lib/datasource/index";
 
 /**
- * Unit tests for the source-resolution logic — the security boundary between a
+ * Unit tests for the source-resolution logic - the security boundary between a
  * client's requested `source` and the data source that actually runs. Verifies
  * the allowlist, the configured-ness gating, and the safe fallback. Pure env
  * logic only (no data source is constructed here).

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ----------------------------------------------------------------------------
-   Design tokens — Cloudflare-inspired light analytics aesthetic. Tailwind v4
+   Design tokens - Cloudflare-inspired light analytics aesthetic. Tailwind v4
    reads these and generates utilities (bg-panel, text-muted, border-line,
    text-accent, ...). Tangerine (#F6821F) is the constant accent; ample white
    space, near-black type, Blueberry for data.

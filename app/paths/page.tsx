@@ -51,7 +51,7 @@ export default function PathExplorerPage() {
     <div className="space-y-4">
       <PageHeader
         title="Path Explorer"
-        description="Match any URL — exact, prefix, glob or regex — then see exactly who hit it."
+        description="Match any URL (exact, prefix, glob or regex), then see exactly who hit it."
         actions={
           <label className="flex items-center gap-2 text-xs text-muted">
             <Layers className="size-3.5 text-faint" />

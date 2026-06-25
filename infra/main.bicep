@@ -1,4 +1,4 @@
-// FrontLens — Azure infrastructure (resource-group scoped).
+// FrontLens - Azure infrastructure (resource-group scoped).
 //   az group create -n frontlens-rg -l eastus
 //   az deployment group create -g frontlens-rg -f infra/main.bicep -p infra/main.parameters.json
 //
@@ -6,12 +6,12 @@
 // user-assigned managed identity (AcrPull), and the FrontLens container app.
 //
 // Data sources:
-//  - 'mock'         — built-in synthetic demo data (no dependencies).
-//  - 'loganalytics' — LIVE Azure Front Door logs, queried straight from the
+//  - 'mock'         - built-in synthetic demo data (no dependencies).
+//  - 'loganalytics' - LIVE Azure Front Door logs, queried straight from the
 //                     Log Analytics workspace the AFD diagnostic setting streams
 //                     to (see logAnalyticsWorkspaceId / logAnalyticsResourceId).
-//                     Adds NO always-on compute — just an RBAC grant.
-//  - 'clickhouse'   — external columnar store (Phase 2); point CLICKHOUSE_URL at it.
+//                     Adds NO always-on compute - just an RBAC grant.
+//  - 'clickhouse'   - external columnar store (Phase 2); point CLICKHOUSE_URL at it.
 //
 // AFD_SOURCES lists which sources the UI can switch between at runtime.
 
@@ -37,7 +37,7 @@ param dataSources string = 'mock'
 @description('Log Analytics workspace GUID (customerId) to query in live mode. Empty disables live mode.')
 param logAnalyticsWorkspaceId string = ''
 
-@description('Full resourceId of that workspace — the scope for the read-only RBAC grant. May live in another resource group.')
+@description('Full resourceId of that workspace - the scope for the read-only RBAC grant. May live in another resource group.')
 param logAnalyticsResourceId string = ''
 
 param clickhouseUrl string = ''

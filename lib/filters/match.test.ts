@@ -138,7 +138,7 @@ describe("matchesFilter", () => {
   });
 });
 
-describe("matchesFilter — negation (not / Exclude)", () => {
+describe("matchesFilter - negation (not / Exclude)", () => {
   it("excludes a record matching a negated equality facet, passes others", () => {
     expect(matches(rec({ country: "US" }), { not: { country: ["US"] } })).toBe(false);
     expect(matches(rec({ country: "IL" }), { not: { country: ["US"] } })).toBe(true);
