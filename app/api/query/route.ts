@@ -121,6 +121,8 @@ export async function POST(req: NextRequest) {
         if (!dimension) return badRequest(`Invalid dimension: ${String(o.dimension)}`);
         return json(await ds.facetValues(f, dimension, num(o.limit)));
       }
+      case "proxyChains":
+        return json(await ds.proxyChains(f, num(o.limit)));
       default:
         return badRequest(`Unknown resource: ${parsed.resource}`);
     }

@@ -28,9 +28,11 @@ import type { Dimension } from "@/lib/domain/types";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricStrip } from "@/components/anomalies/metric-strip";
 import { MetricTrend } from "@/components/anomalies/metric-trend";
+import { MetricOverlay } from "@/components/anomalies/metric-overlay";
 import { IncidentFeed } from "@/components/anomalies/incident-feed";
 import { IncidentTimeline } from "@/components/anomalies/incident-timeline";
 import { WhatsDifferent } from "@/components/anomalies/whats-different";
+import { ProxyPanel } from "@/components/anomalies/proxy-panel";
 import {
   BreakdownPanel,
   mergeFilter,
@@ -230,6 +232,13 @@ export default function AnomaliesPage() {
           selectedMetric={selected}
           onInvestigate={investigate}
         />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <MetricOverlay points={points} loading={ts.isLoading} />
+        </div>
+        <ProxyPanel filter={fh.filter} />
       </div>
 
       {activeIncident && (

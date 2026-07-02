@@ -3,6 +3,7 @@ import type {
   GeoRow,
   LogsPage,
   PathRow,
+  ProxyChains,
   Summary,
   TimePoint,
   TopNRow,
@@ -86,6 +87,9 @@ export interface DataSource {
 
   /** Raw access-log rows (virtualized grid), newest first. */
   logs(filter: Filter, opts?: LogsOptions): Promise<LogsPage>;
+
+  /** Proxy-chain analysis: traffic where SocketIp differs from ClientIp. */
+  proxyChains(filter: Filter, limit?: number): Promise<ProxyChains>;
 
   /** Distinct values for a dimension (for filter autocomplete). */
   facetValues(filter: Filter, dimension: Dimension, limit?: number): Promise<TopNRow[]>;

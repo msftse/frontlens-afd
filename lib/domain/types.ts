@@ -215,6 +215,25 @@ export interface LogsPage {
   nextCursor: string | null;
 }
 
+/** One proxied client: its XFF ClientIp reached the edge via a different SocketIp. */
+export interface ProxyPairRow {
+  clientIp: string;
+  socketIp: string;
+  requests: number;
+  /** Distinct SocketIps seen for this ClientIp in the window (chain fan-out). */
+  distinctSockets: number;
+}
+
+/** Proxy-chain summary: how much traffic arrives via a proxy (SocketIp != ClientIp). */
+export interface ProxyChains {
+  /** Total requests considered in the window. */
+  total: number;
+  /** Requests where SocketIp differs from ClientIp. */
+  proxied: number;
+  /** Top proxied client IPs by request volume. */
+  pairs: ProxyPairRow[];
+}
+
 export const STATUS_CLASSES: StatusClass[] = ["2xx", "3xx", "4xx", "5xx", "other"];
 
 export function statusClass(status: number): StatusClass {

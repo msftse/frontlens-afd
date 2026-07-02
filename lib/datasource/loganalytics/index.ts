@@ -13,6 +13,7 @@ import type {
   GeoRow,
   LogsPage,
   PathRow,
+  ProxyChains,
   StatusClass,
   Summary,
   TimePoint,
@@ -518,6 +519,39 @@ export class LogAnalyticsDataSource implements DataSource {
 
   async facetValues(f: Filter, dimension: Dimension, limit = 50): Promise<TopNRow[]> {
     return this.topN(f, { dimension, limit });
+  }
+
+  async proxyChains(f: Filter, limit = 12): Promise<ProxyChains> {
+    const { from, to } = resolveTimeRange(f);
+    const clamped = clampLimit(limit, 12, 100);
+    const prefix = this.prefix(f, from, to);
+    // Proxied = the direct peer (SocketIp) differs from the XFF ClientIp. Rank
+    // proxied clients by volume; carry the distinct-socket fan-out per client.
+    const proxyKql = [
+      prefix,
+      `| extend socketIp = tostring(socketIp_s)`,
+      `| where isnotempty(socketIp) and socketIp != clientIp`,
+      `| summarize requests = count(), distinctSockets = dcount(socketIp), socketIp = any(socketIp) by clientIp`,
+      `| order by requests desc`,
+      `| take ${clamped}`,
+    ].join("\n");
+    const totalsKql = [
+      prefix,
+      `| extend socketIp = tostring(socketIp_s)`,
+      `| summarize total = count(), proxied = countif(isnotempty(socketIp) and socketIp != clientIp)`,
+    ].join("\n");
+    const [pairRows, totalRows] = await Promise.all([this.run(proxyKql), this.run(totalsKql)]);
+    const t = totalRows[0] ?? {};
+    return {
+      total: num(t.total),
+      proxied: num(t.proxied),
+      pairs: pairRows.map((r) => ({
+        clientIp: str(r.clientIp),
+        socketIp: str(r.socketIp),
+        requests: num(r.requests),
+        distinctSockets: num(r.distinctSockets),
+      })),
+    };
   }
 }
 

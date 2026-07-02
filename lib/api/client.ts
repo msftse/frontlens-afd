@@ -3,6 +3,7 @@ import type {
   GeoRow,
   LogsPage,
   PathRow,
+  ProxyChains,
   Summary,
   TimePoint,
   TopNRow,
@@ -61,4 +62,5 @@ export const api = {
   logs: (f: Filter, o?: LogsOptions) => call<LogsPage>("logs", f, { ...o }),
   facetValues: (f: Filter, dimension: Dimension, limit?: number) =>
     call<TopNRow[]>("facetValues", f, { dimension, limit }),
+  proxyChains: (f: Filter, limit?: number) => call<ProxyChains>("proxyChains", f, { limit }),
 };

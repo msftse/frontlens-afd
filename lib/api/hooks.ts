@@ -117,3 +117,13 @@ export function useFacetValues(f: Filter, dimension: Dimension, limit?: number, 
     ...common,
   });
 }
+
+export function useProxyChains(f: Filter, limit?: number, enabled = true) {
+  const src = useSelectedSource();
+  return useQuery({
+    queryKey: ["proxyChains", src, f, limit],
+    queryFn: () => api.proxyChains(f, limit),
+    enabled,
+    ...common,
+  });
+}

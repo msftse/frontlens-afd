@@ -106,10 +106,31 @@ describe("MockDataSource contract", () => {
     expect(facets[0].key).toBeTruthy();
   });
 
+  it("proxyChains detects proxied traffic (SocketIp != ClientIp)", async () => {
+    const p = await ds.proxyChains(f, 10);
+    expect(p.total).toBeGreaterThan(0);
+    // ~12% of visitors are proxied, so some proxied requests must exist.
+    expect(p.proxied).toBeGreaterThan(0);
+    expect(p.proxied).toBeLessThanOrEqual(p.total);
+    expect(p.pairs.length).toBeGreaterThan(0);
+    for (const pair of p.pairs) {
+      expect(pair.clientIp).toBeTruthy();
+      expect(pair.socketIp).toBeTruthy();
+      expect(pair.socketIp).not.toBe(pair.clientIp);
+      expect(pair.requests).toBeGreaterThan(0);
+      expect(pair.distinctSockets).toBeGreaterThanOrEqual(1);
+    }
+    // Pairs are ranked by request volume (desc).
+    for (let i = 1; i < p.pairs.length; i++) {
+      expect(p.pairs[i - 1].requests).toBeGreaterThanOrEqual(p.pairs[i].requests);
+    }
+  });
+
   it("an unmatched filter yields empty results", async () => {
     const none = filterSchema.parse({ range: "90d", country: ["ZZ"] });
     expect((await ds.summary(none)).requests).toBe(0);
     expect(await ds.geo(none)).toEqual([]);
     expect((await ds.logs(none)).total).toBe(0);
+    expect((await ds.proxyChains(none)).proxied).toBe(0);
   });
 });

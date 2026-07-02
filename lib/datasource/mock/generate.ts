@@ -64,6 +64,7 @@ const IP_PREFIXES = [12, 24, 31, 45, 51, 77, 82, 88, 99, 103, 151, 176, 185, 196
 
 interface Visitor {
   clientIp: string;
+  socketIp: string;
   country: CountryDef;
   city: { name: string; lat: number; lon: number };
   lat: number;
@@ -112,10 +113,18 @@ function buildVisitorPool(rng: () => number, count: number): Visitor[] {
     const asn = isBot ? pickDc(rng()) : pickIsp(rng());
     const prefix = IP_PREFIXES[Math.floor(rng() * IP_PREFIXES.length)];
     const clientIp = `${prefix}.${Math.floor(rng() * 256)}.${Math.floor(rng() * 256)}.${1 + Math.floor(rng() * 254)}`;
+    // ~12% of clients sit behind a proxy/corporate egress, so the edge sees a
+    // SocketIp (the direct peer) that differs from the XFF ClientIp. Real AFD
+    // exposes both; this makes proxy-chain analysis meaningful on demo data too.
+    const proxied = rng() < 0.12;
+    const socketIp = proxied
+      ? `${prefix}.${Math.floor(rng() * 256)}.${Math.floor(rng() * 256)}.${1 + Math.floor(rng() * 254)}`
+      : clientIp;
     // Pareto-ish activity: a few very heavy users, long tail of light ones.
     const activity = Math.pow(rng(), 2.2) * 9 + 0.15;
     visitors.push({
       clientIp,
+      socketIp,
       country,
       city,
       lat: city.lat + gaussian(rng) * 0.15,
@@ -314,7 +323,7 @@ export function generateDataset(opts: GenerateOptions = {}): MockDataset {
       timeTaken: Number(timeTaken.toFixed(4)),
       timeToFirstByte: Number(ttfb.toFixed(4)),
       clientIp: v.clientIp,
-      socketIp: v.clientIp,
+      socketIp: v.socketIp,
       clientPort: 1024 + Math.floor(rng() * 64000),
       country: v.country.iso2,
       countryName: v.country.name,

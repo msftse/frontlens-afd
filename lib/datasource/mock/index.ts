@@ -4,6 +4,7 @@ import type {
   GeoRow,
   LogsPage,
   PathRow,
+  ProxyChains,
   StatusClass,
   Summary,
   TimePoint,
@@ -385,9 +386,43 @@ export class MockDataSource implements DataSource {
     const { rows } = filterRecords(filter);
     return computeTopN(rows, { dimension, limit });
   }
+
+  async proxyChains(filter: Filter, limit = 12): Promise<ProxyChains> {
+    const { rows } = filterRecords(filter);
+    return computeProxyChains(rows, limit);
+  }
 }
 
 // ---- shared aggregation helpers ----
+
+/** Count proxied requests (SocketIp != ClientIp) and rank the top proxied clients. */
+function computeProxyChains(rows: AccessLogRecord[], limit: number): ProxyChains {
+  let proxied = 0;
+  // clientIp -> { requests, sockets }
+  const byClient = new Map<string, { requests: number; sockets: Set<string> }>();
+  for (const r of rows) {
+    if (r.socketIp === r.clientIp) continue;
+    proxied++;
+    let e = byClient.get(r.clientIp);
+    if (!e) {
+      e = { requests: 0, sockets: new Set() };
+      byClient.set(r.clientIp, e);
+    }
+    e.requests++;
+    e.sockets.add(r.socketIp);
+  }
+  const pairs = [...byClient.entries()]
+    .map(([clientIp, e]) => ({
+      clientIp,
+      // Representative socket (first seen); distinctSockets carries the fan-out.
+      socketIp: e.sockets.values().next().value ?? "",
+      requests: e.requests,
+      distinctSockets: e.sockets.size,
+    }))
+    .sort((a, b) => b.requests - a.requests)
+    .slice(0, limit);
+  return { total: rows.length, proxied, pairs };
+}
 
 function blankPoint(t: string): TimePoint & { _visitors: Set<string>; _lat: number; _lats: number[] } {
   return {
