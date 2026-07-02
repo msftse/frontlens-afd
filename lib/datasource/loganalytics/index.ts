@@ -28,8 +28,10 @@ import type {
   TimeseriesOptions,
   TopNOptions,
   VisitorsOptions,
+  WafDataSource,
 } from "@/lib/datasource/types";
 import { resolveTimeRange, type Filter } from "@/lib/filters/model";
+import { createLogAnalyticsWaf } from "@/lib/datasource/loganalytics/waf";
 import {
   autoBucketSeconds,
   baseProjection,
@@ -92,6 +94,15 @@ const PATHS_ORDER: Record<string, string> = {
 export class LogAnalyticsDataSource implements DataSource {
   readonly name = "loganalytics";
   private _client: LogsQueryClient | null = null;
+  private _waf: WafDataSource | null = null;
+
+  /** WAF surface over FrontDoorWebApplicationFirewallLog (same workspace). */
+  get waf(): WafDataSource {
+    if (!this._waf) {
+      this._waf = createLogAnalyticsWaf((kql) => this.run(kql));
+    }
+    return this._waf;
+  }
 
   private client(): LogsQueryClient {
     if (!this._client) {

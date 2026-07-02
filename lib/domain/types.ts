@@ -234,6 +234,82 @@ export interface ProxyChains {
   pairs: ProxyPairRow[];
 }
 
+// ----------------------------------------------------------------------------
+// Web Application Firewall (WAF) model
+// ----------------------------------------------------------------------------
+// Azure Front Door WAF logs land in a separate category
+// (`FrontDoorWebApplicationFirewallLog`) from access logs. These types mirror
+// the real fields: action (Block/Log/AnomalyScoring), the matched managed/bot
+// rule, the client IP, the request URI, and the human-readable match message.
+// `trackingRef` (X-Azure-Ref) is present on every row and joins WAF events back
+// to the corresponding access-log request.
+
+export type WafAction = "Block" | "Log" | "AnomalyScoring" | "Allow" | "JSChallenge" | "Redirect";
+
+/** WAF activity summary over a window. */
+export interface WafSummary {
+  /** All WAF evaluations in the window. */
+  total: number;
+  /** Enforced blocks (action == Block). */
+  blocked: number;
+  /** Logged-only matches (action == Log). */
+  logged: number;
+  /** Anomaly-scoring contributions (OWASP CRS). */
+  scored: number;
+  /** Distinct client IPs seen by the WAF. */
+  distinctIps: number;
+  /** Distinct rules that fired. */
+  distinctRules: number;
+  /** Block rate over the window (blocked / total), 0..1. */
+  blockRate: number;
+  /** Comparison vs the previous equal-length window (ratios), when available. */
+  delta?: Partial<Record<"total" | "blocked" | "logged" | "scored" | "blockRate", number>>;
+}
+
+/** One time bucket of WAF activity (for trend + block-rate anomaly detection). */
+export interface WafTimePoint {
+  t: string;
+  total: number;
+  blocked: number;
+  logged: number;
+  scored: number;
+}
+
+/** A ranked WAF dimension row (rule, IP, path, country, action, message). */
+export interface WafTopRow {
+  key: string;
+  label: string;
+  /** Total matches for this value. */
+  count: number;
+  /** How many of those were enforced blocks. */
+  blocked: number;
+  /** Fraction of the window's WAF events (0..1). */
+  share: number;
+}
+
+/** A single WAF event (for the recent-events table + drill-down). */
+export interface WafEvent {
+  timestamp: string;
+  action: WafAction;
+  ruleName: string;
+  ruleGroup: string;
+  clientIp: string;
+  country: string;
+  host: string;
+  method: string;
+  url: string;
+  message: string;
+  policy: string;
+  /** X-Azure-Ref, joins to the access-log record. */
+  trackingRef: string;
+}
+
+export interface WafEventsPage {
+  rows: WafEvent[];
+  total: number;
+  nextCursor: string | null;
+}
+
 export const STATUS_CLASSES: StatusClass[] = ["2xx", "3xx", "4xx", "5xx", "other"];
 
 export function statusClass(status: number): StatusClass {

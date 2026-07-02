@@ -9,6 +9,10 @@ import type {
   TopNRow,
   VisitorDetail,
   VisitorRow,
+  WafEventsPage,
+  WafSummary,
+  WafTimePoint,
+  WafTopRow,
 } from "@/lib/domain/types";
 import type { Filter } from "@/lib/filters/model";
 
@@ -93,4 +97,48 @@ export interface DataSource {
 
   /** Distinct values for a dimension (for filter autocomplete). */
   facetValues(filter: Filter, dimension: Dimension, limit?: number): Promise<TopNRow[]>;
+
+  /**
+   * Web Application Firewall access, when this source has WAF logs. Sources
+   * without a WAF table (e.g. ClickHouse traffic-only) return `undefined`, and
+   * the UI hides WAF features rather than fabricate them.
+   */
+  readonly waf?: WafDataSource;
+}
+
+/** WAF-specific breakdown dimensions (map to real FrontDoorWebApplicationFirewallLog fields). */
+export type WafDimension = "ruleName" | "ruleGroup" | "action" | "clientIp" | "country" | "url" | "message";
+
+export interface WafTopOptions {
+  dimension: WafDimension;
+  limit?: number;
+  /** Restrict to a single action (e.g. only Block) before ranking. */
+  action?: string;
+}
+
+export interface WafEventsOptions {
+  limit?: number;
+  cursor?: string | null;
+  sortDir?: SortDir;
+  /** Restrict to a single action. */
+  action?: string;
+}
+
+/**
+ * The WAF surface of a data source. Kept separate from {@link DataSource}
+ * because WAF logs are a distinct category with their own schema; a source
+ * exposes it via `DataSource.waf` only when it actually has WAF data.
+ */
+export interface WafDataSource {
+  /** Headline WAF numbers (+ deltas vs the previous window). */
+  summary(filter: Filter): Promise<WafSummary>;
+
+  /** WAF activity over time (for the trend + block-rate anomaly detection). */
+  timeseries(filter: Filter, opts?: TimeseriesOptions): Promise<WafTimePoint[]>;
+
+  /** Top-N by a WAF dimension (rules, blocked IPs, targeted paths, …). */
+  topN(filter: Filter, opts: WafTopOptions): Promise<WafTopRow[]>;
+
+  /** Recent WAF events (newest first), for the events table + drill-down. */
+  events(filter: Filter, opts?: WafEventsOptions): Promise<WafEventsPage>;
 }

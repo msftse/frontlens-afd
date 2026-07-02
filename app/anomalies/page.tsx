@@ -20,6 +20,7 @@ import {
 } from "@/lib/anomaly";
 import {
   UNSUPPORTED_REASON,
+  isWafSupported,
   partitionDimensions,
   toSourceKind,
 } from "@/lib/datasource/capabilities";
@@ -33,6 +34,7 @@ import { IncidentFeed } from "@/components/anomalies/incident-feed";
 import { IncidentTimeline } from "@/components/anomalies/incident-timeline";
 import { WhatsDifferent } from "@/components/anomalies/whats-different";
 import { ProxyPanel } from "@/components/anomalies/proxy-panel";
+import { WafSection } from "@/components/anomalies/waf-section";
 import {
   BreakdownPanel,
   mergeFilter,
@@ -283,6 +285,8 @@ export default function AnomaliesPage() {
           .
         </p>
       )}
+
+      {isWafSupported(source) && <WafSection filter={fh.filter} />}
     </div>
   );
 }

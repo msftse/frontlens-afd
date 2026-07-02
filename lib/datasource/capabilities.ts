@@ -54,6 +54,16 @@ export function isDimensionSupported(source: SourceKind, dim: Dimension): boolea
   return !UNSUPPORTED_BY_SOURCE[source].has(dim);
 }
 
+/**
+ * Whether a source exposes Web Application Firewall logs. Front Door (Log
+ * Analytics) and the mock do; the ClickHouse traffic pipeline does not, so WAF
+ * features are hidden there rather than shown empty.
+ */
+const WAF_SOURCES: ReadonlySet<SourceKind> = new Set<SourceKind>(["loganalytics", "mock"]);
+export function isWafSupported(source: SourceKind): boolean {
+  return WAF_SOURCES.has(source);
+}
+
 /** Partition dimensions into the ones a source can back and the ones it can't. */
 export function partitionDimensions<T extends { dimension: Dimension }>(
   source: SourceKind,

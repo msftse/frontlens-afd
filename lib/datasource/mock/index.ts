@@ -20,8 +20,10 @@ import type {
   TimeseriesOptions,
   TopNOptions,
   VisitorsOptions,
+  WafDataSource,
 } from "@/lib/datasource/types";
 import { resolveTimeRange, type Filter } from "@/lib/filters/model";
+import { createMockWaf } from "@/lib/datasource/mock/waf";
 import { buildMatchContext, matchesFilter } from "@/lib/filters/match";
 import { generateDataset, type MockDataset } from "@/lib/datasource/mock/generate";
 
@@ -184,6 +186,15 @@ function sortRows<T>(rows: T[], by: (r: T) => number, dir: "asc" | "desc") {
 
 export class MockDataSource implements DataSource {
   readonly name = "mock";
+  private _waf: WafDataSource | null = null;
+
+  /** WAF surface, synthesized from the same access records (see mock/waf.ts). */
+  get waf(): WafDataSource {
+    if (!this._waf) {
+      this._waf = createMockWaf((f) => filterRecords(f).rows);
+    }
+    return this._waf;
+  }
 
   async summary(filter: Filter): Promise<Summary> {
     const { rows, from, to } = filterRecords(filter);

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   UNSUPPORTED_REASON,
   isDimensionSupported,
+  isWafSupported,
   partitionDimensions,
   toSourceKind,
 } from "@/lib/datasource/capabilities";
@@ -40,6 +41,14 @@ describe("isDimensionSupported", () => {
       expect(isDimensionSupported("mock", d)).toBe(true);
       expect(isDimensionSupported("clickhouse", d)).toBe(true);
     }
+  });
+});
+
+describe("isWafSupported", () => {
+  it("is true for Front Door and mock, false for ClickHouse", () => {
+    expect(isWafSupported("loganalytics")).toBe(true);
+    expect(isWafSupported("mock")).toBe(true);
+    expect(isWafSupported("clickhouse")).toBe(false);
   });
 });
 

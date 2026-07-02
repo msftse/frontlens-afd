@@ -8,6 +8,8 @@ import type {
   PathExplorerOptions,
   TopNOptions,
   VisitorsOptions,
+  WafEventsOptions,
+  WafTopOptions,
 } from "@/lib/datasource/types";
 import type { Filter } from "@/lib/filters/model";
 import { api } from "@/lib/api/client";
@@ -124,6 +126,40 @@ export function useProxyChains(f: Filter, limit?: number, enabled = true) {
     queryKey: ["proxyChains", src, f, limit],
     queryFn: () => api.proxyChains(f, limit),
     enabled,
+    ...common,
+  });
+}
+
+// ---- WAF ----
+
+export function useWafSummary(f: Filter) {
+  const src = useSelectedSource();
+  return useQuery({ queryKey: ["wafSummary", src, f], queryFn: () => api.wafSummary(f), ...common });
+}
+
+export function useWafTimeseries(f: Filter, bucketSeconds?: number) {
+  const src = useSelectedSource();
+  return useQuery({
+    queryKey: ["wafTimeseries", src, f, bucketSeconds],
+    queryFn: () => api.wafTimeseries(f, bucketSeconds),
+    ...common,
+  });
+}
+
+export function useWafTopN(f: Filter, opts: WafTopOptions) {
+  const src = useSelectedSource();
+  return useQuery({
+    queryKey: ["wafTopN", src, f, opts],
+    queryFn: () => api.wafTopN(f, opts),
+    ...common,
+  });
+}
+
+export function useWafEvents(f: Filter, opts?: WafEventsOptions) {
+  const src = useSelectedSource();
+  return useQuery({
+    queryKey: ["wafEvents", src, f, opts],
+    queryFn: () => api.wafEvents(f, opts),
     ...common,
   });
 }
