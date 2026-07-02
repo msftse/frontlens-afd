@@ -206,7 +206,7 @@ export class MockDataSource implements DataSource {
     const spanSec = (to.getTime() - from.getTime()) / 1000;
     const bucket = (opts.bucketSeconds ?? autoBucketSeconds(spanSec)) * 1000;
     const startAligned = Math.floor(from.getTime() / bucket) * bucket;
-    const buckets = new Map<number, TimePoint & { _visitors: Set<string>; _lat: number }>();
+    const buckets = new Map<number, TimePoint & { _visitors: Set<string>; _lat: number; _lats: number[] }>();
 
     for (let t = startAligned; t <= to.getTime(); t += bucket) {
       buckets.set(t, blankPoint(new Date(t).toISOString()));
@@ -219,6 +219,7 @@ export class MockDataSource implements DataSource {
       p.bytes += r.responseBytes;
       p._visitors.add(r.clientIp);
       p._lat += r.timeTaken;
+      p._lats.push(r.timeTaken);
       const cls = statusClass(r.status);
       if (cls === "2xx") p.status2xx++;
       else if (cls === "3xx") p.status3xx++;
@@ -230,9 +231,11 @@ export class MockDataSource implements DataSource {
     return [...buckets.values()].map((p) => {
       p.uniqueVisitors = p._visitors.size;
       p.avgLatencyMs = p.requests ? (p._lat / p.requests) * 1000 : 0;
-      const { _visitors, _lat, ...clean } = p;
+      p.p95LatencyMs = percentile([...p._lats].sort((a, b) => a - b), 95) * 1000;
+      const { _visitors, _lat, _lats, ...clean } = p;
       void _visitors;
       void _lat;
+      void _lats;
       return clean;
     });
   }
@@ -386,7 +389,7 @@ export class MockDataSource implements DataSource {
 
 // ---- shared aggregation helpers ----
 
-function blankPoint(t: string): TimePoint & { _visitors: Set<string>; _lat: number } {
+function blankPoint(t: string): TimePoint & { _visitors: Set<string>; _lat: number; _lats: number[] } {
   return {
     t,
     requests: 0,
@@ -399,8 +402,10 @@ function blankPoint(t: string): TimePoint & { _visitors: Set<string>; _lat: numb
     cacheHit: 0,
     cacheMiss: 0,
     avgLatencyMs: 0,
+    p95LatencyMs: 0,
     _visitors: new Set(),
     _lat: 0,
+    _lats: [],
   };
 }
 

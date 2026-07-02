@@ -105,8 +105,8 @@ export function worstAnomaly(list: MetricAnomaly[]): MetricKey | undefined {
 
 /**
  * Project a metric out of the timeseries buckets, preserving `points` order so
- * callers can zip the result back with each bucket's timestamp. Note: the
- * timeseries has no per-bucket p95, so both latency metrics use `avgLatencyMs`.
+ * callers can zip the result back with each bucket's timestamp. Latency metrics
+ * read their own per-bucket aggregate (`p95LatencyMs` / `avgLatencyMs`).
  */
 export function seriesFor(points: TimePoint[], key: MetricKey): number[] {
   return points.map((p) => valueFromPoint(p, key));
@@ -129,6 +129,7 @@ function valueFromPoint(p: TimePoint, key: MetricKey): number {
     case "errorRate5xx":
       return p.requests ? p.status5xx / p.requests : 0;
     case "p95LatencyMs":
+      return p.p95LatencyMs;
     case "avgLatencyMs":
       return p.avgLatencyMs;
   }
@@ -177,6 +178,278 @@ export function detectSpikes(values: number[], k = 3.5): SpikeResult {
 
   if (!idxs.length) return { idxs: [] };
   return { idxs, window: { startIdx: Math.min(...idxs), endIdx: Math.max(...idxs) } };
+}
+
+// ---------------------------------------------------------------------------
+// Incident engine: rolling baseline -> per-bucket score -> grouped incidents
+// ---------------------------------------------------------------------------
+//
+// Where `detectSpikes` answers "which buckets are outliers" over a whole
+// series, the incident engine answers "what discrete events happened, when,
+// how bad, and in the direction that matters for this metric". It powers the
+// Overview/Anomalies incident feed and timeline strip.
+//
+// It is a pure function of the timeseries the datasource already returns, so it
+// runs identically against real AFD (Log Analytics), ClickHouse and mock data.
+
+/** Per-bucket robust baseline: a local center (median) and scale (MAD->sigma). */
+export interface BaselinePoint {
+  center: number;
+  /** Robust standard-deviation estimate (1.4826 * MAD), floored to avoid /0. */
+  scale: number;
+}
+
+const MAD_TO_SIGMA = 1.4826;
+
+/**
+ * Rolling robust baseline over `values`. For each index we take a *trailing*
+ * window of up to `window` prior buckets (excluding the current one) and derive
+ * a median center and MAD-based scale. Trailing (not centered) so an event does
+ * not mask itself; falls back to the global center/scale until enough history
+ * exists. When MAD is zero (a flat stretch) we fall back to the window's stdev,
+ * then to a small fraction of the center, so a jump off a perfectly flat line
+ * still scores.
+ */
+export function rollingBaseline(values: number[], window = 24): BaselinePoint[] {
+  const n = values.length;
+  if (n === 0) return [];
+  const globalMed = median(values);
+  const globalMad = median(values.map((v) => Math.abs(v - globalMed)));
+  const globalScale = robustScale(values, globalMed, globalMad);
+
+  const out: BaselinePoint[] = [];
+  for (let i = 0; i < n; i++) {
+    const start = Math.max(0, i - window);
+    const hist = values.slice(start, i);
+    if (hist.length < 4) {
+      out.push({ center: globalMed, scale: globalScale });
+      continue;
+    }
+    const med = median(hist);
+    const mad = median(hist.map((v) => Math.abs(v - med)));
+    out.push({ center: med, scale: robustScale(hist, med, mad) });
+  }
+  return out;
+}
+
+/** MAD->sigma, with a stdev fallback for flat windows and a floor off center. */
+function robustScale(sample: number[], center: number, mad: number): number {
+  if (mad > 0) return MAD_TO_SIGMA * mad;
+  if (sample.length > 1) {
+    const mean = sample.reduce((a, b) => a + b, 0) / sample.length;
+    const sd = Math.sqrt(sample.reduce((a, b) => a + (b - mean) ** 2, 0) / sample.length);
+    if (sd > 0) return sd;
+  }
+  // Perfectly flat history: allow a jump to still register (5% of |center|).
+  return Math.max(Math.abs(center) * 0.05, Number.EPSILON);
+}
+
+/** Signed modified z-score of each bucket against its rolling baseline. */
+export function bucketScores(values: number[], window = 24): number[] {
+  const base = rollingBaseline(values, window);
+  return values.map((v, i) => (v - base[i].center) / base[i].scale);
+}
+
+/**
+ * Contamination-resistant scores. A plain trailing baseline is poisoned by the
+ * event itself: once a sustained anomaly enters the trailing window, it lifts
+ * the center/scale and the rest of the event scores as "normal". We fix that by
+ * winsorizing: after a first pass flags hot buckets against `k`, we replace each
+ * hot bucket's value with its baseline center and recompute, so the baseline
+ * reflects *normal* traffic only. Two passes converge in practice; we cap at 3.
+ * Returns the final signed scores and the value series actually used as the
+ * baseline reference (hot buckets held at normal).
+ */
+function robustScores(
+  values: number[],
+  window: number,
+  k: number,
+  badIsUp: boolean,
+): { scores: number[]; baseline: BaselinePoint[] } {
+  let ref = values;
+  let base = rollingBaseline(ref, window);
+  let scores = values.map((v, i) => (v - base[i].center) / base[i].scale);
+
+  for (let pass = 0; pass < 3; pass++) {
+    const hot = scores.map((s) => (badIsUp ? s >= k : s <= -k));
+    if (!hot.some(Boolean)) break;
+    // Hold hot buckets at their current baseline center for the next baseline.
+    const nextRef = values.map((v, i) => (hot[i] ? base[i].center : v));
+    if (arraysEqual(nextRef, ref)) break;
+    ref = nextRef;
+    base = rollingBaseline(ref, window);
+    // Score the ORIGINAL values against the clean baseline.
+    scores = values.map((v, i) => (v - base[i].center) / base[i].scale);
+  }
+  return { scores, baseline: base };
+}
+
+function arraysEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/** A detected incident on one metric: a contiguous run of anomalous buckets. */
+export interface Incident {
+  metric: MetricKey;
+  label: string;
+  /** Inclusive bucket index bounds into the source `points` array. */
+  startIdx: number;
+  endIdx: number;
+  /** ISO timestamps of the first and last anomalous bucket. */
+  startTime: string;
+  endTime: string;
+  /** Number of buckets in the incident (>= 1). */
+  buckets: number;
+  /** Whether the metric moved in its unhealthy direction. */
+  direction: "up" | "down";
+  /** Peak observed value within the incident. */
+  peakValue: number;
+  /** Baseline center at the peak bucket (what "normal" looked like). */
+  baselineAtPeak: number;
+  /** Peak |modified z-score| across the incident (how far from normal). */
+  peakScore: number;
+  /** 0..1 rank across incidents: folds peak deviation and duration together. */
+  severity: number;
+}
+
+export interface DetectIncidentsOptions {
+  /** |modified z-score| at/above which a bucket is anomalous. Default 3.5. */
+  k?: number;
+  /** Trailing baseline window in buckets. Default 24. */
+  window?: number;
+  /** Bridge this many sub-threshold buckets between spikes into one incident. Default 1. */
+  maxGap?: number;
+  /** Ignore incidents shorter than this many buckets. Default 1. */
+  minBuckets?: number;
+}
+
+/**
+ * Detect incidents for one metric across the timeseries. A bucket qualifies
+ * when its signed score crosses `k` in the metric's *unhealthy* direction
+ * (rise for errors/latency, drop for requests/cache-hit per METRIC_CONFIG),
+ * and, for rate metrics, only once the value clears the metric's `absFloor`.
+ * Consecutive qualifying buckets (allowing `maxGap` quiet buckets between) form
+ * one incident. Returns incidents sorted by descending severity.
+ */
+export function detectIncidents(
+  points: TimePoint[],
+  key: MetricKey,
+  opts: DetectIncidentsOptions = {},
+): Incident[] {
+  const cfg = METRIC_CONFIG.find((c) => c.key === key);
+  if (!cfg) return [];
+  const { k = 3.5, window = 24, maxGap = 1, minBuckets = 1 } = opts;
+  const values = seriesFor(points, key);
+  const n = values.length;
+  if (n < 4) return [];
+
+  const badIsUp = !cfg.goodWhenUp;
+  const { scores, baseline: base } = robustScores(values, window, k, badIsUp);
+
+  // A bucket is "hot" when it breaches k in the unhealthy direction and, for
+  // floored rate metrics, is above the floor (kills noise on tiny values).
+  const hot = values.map((v, i) => {
+    const s = scores[i];
+    const dirHit = badIsUp ? s >= k : s <= -k;
+    const floorOk = cfg.absFloor === undefined || v >= cfg.absFloor;
+    return dirHit && floorOk;
+  });
+
+  const incidents: Incident[] = [];
+  let i = 0;
+  while (i < n) {
+    if (!hot[i]) {
+      i++;
+      continue;
+    }
+    // Extend the run, bridging up to `maxGap` non-hot buckets.
+    let end = i;
+    let gap = 0;
+    for (let j = i + 1; j < n; j++) {
+      if (hot[j]) {
+        end = j;
+        gap = 0;
+      } else if (gap < maxGap) {
+        gap++;
+      } else {
+        break;
+      }
+    }
+
+    const incident = summarizeRun(points, values, base, scores, key, cfg.label, badIsUp, i, end);
+    if (incident.buckets >= minBuckets) incidents.push(incident);
+    i = end + 1;
+  }
+
+  rankIncidents(incidents);
+  return incidents.sort((a, b) => b.severity - a.severity);
+}
+
+/** Build an Incident from an [start,end] run; picks the peak bucket by |score|. */
+function summarizeRun(
+  points: TimePoint[],
+  values: number[],
+  base: BaselinePoint[],
+  scores: number[],
+  key: MetricKey,
+  label: string,
+  badIsUp: boolean,
+  start: number,
+  end: number,
+): Incident {
+  let peakIdx = start;
+  for (let j = start; j <= end; j++) {
+    if (Math.abs(scores[j]) > Math.abs(scores[peakIdx])) peakIdx = j;
+  }
+  return {
+    metric: key,
+    label,
+    startIdx: start,
+    endIdx: end,
+    startTime: points[start].t,
+    endTime: points[end].t,
+    buckets: end - start + 1,
+    direction: badIsUp ? "up" : "down",
+    peakValue: values[peakIdx],
+    baselineAtPeak: base[peakIdx].center,
+    peakScore: Math.abs(scores[peakIdx]),
+    severity: 0, // filled by rankIncidents once the whole set is known
+  };
+}
+
+/**
+ * Assign each incident a 0..1 severity from three interpretable signals:
+ *   - statistical deviation: |peak z-score| saturating around 8 sigma;
+ *   - magnitude: fractional change of the peak vs its baseline (|peak-base|/base,
+ *     capped at 1) so a collapse to ~0 (or a multi-fold spike) outranks a mild
+ *     move even when both are many sigma out;
+ *   - duration: a mild bonus so sustained events edge out equally-severe blips.
+ * Weighted so magnitude and deviation dominate; result clamped to [0,1].
+ */
+function rankIncidents(incidents: Incident[]): void {
+  for (const inc of incidents) {
+    const deviation = Math.min(1, inc.peakScore / 8);
+    const denom = Math.max(Math.abs(inc.baselineAtPeak), Number.EPSILON);
+    const magnitude = Math.min(1, Math.abs(inc.peakValue - inc.baselineAtPeak) / denom);
+    const durationBonus = Math.min(0.15, (inc.buckets - 1) * 0.03);
+    inc.severity = Math.min(1, deviation * 0.45 + magnitude * 0.45 + durationBonus);
+  }
+}
+
+/**
+ * Detect incidents across several metrics and merge them into one feed sorted
+ * by severity. Convenience wrapper over {@link detectIncidents} for the feed UI.
+ */
+export function detectIncidentsForMetrics(
+  points: TimePoint[],
+  keys: readonly MetricKey[],
+  opts: DetectIncidentsOptions = {},
+): Incident[] {
+  return keys
+    .flatMap((k) => detectIncidents(points, k, opts))
+    .sort((a, b) => b.severity - a.severity);
 }
 
 // ---------------------------------------------------------------------------

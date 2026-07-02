@@ -216,7 +216,8 @@ export class LogAnalyticsDataSource implements DataSource {
       `            status5xx = countif(statusClass == 5),`,
       `            cacheHit = countif(${CACHE_HIT}),`,
       `            cacheMiss = countif(cacheStatus == "MISS"),`,
-      `            avgMs = avg(ms)`,
+      `            avgMs = avg(ms),`,
+      `            p95Ms = percentile(ms, 95)`,
       `          by t = bin(TimeGenerated, ${bucket}s)`,
       `| order by t asc`,
     ].join("\n");
@@ -233,6 +234,7 @@ export class LogAnalyticsDataSource implements DataSource {
       cacheHit: num(r.cacheHit),
       cacheMiss: num(r.cacheMiss),
       avgLatencyMs: num(r.avgMs),
+      p95LatencyMs: num(r.p95Ms),
     }));
   }
 

@@ -4,10 +4,15 @@ import type { Summary, TimePoint } from "@/lib/domain/types";
 import {
   BREAKDOWNS,
   METRIC_CONFIG,
+  bucketScores,
+  detectIncidents,
+  detectIncidentsForMetrics,
   detectSpikes,
+  rollingBaseline,
   scoreMetricAnomaly,
   seriesFor,
   worstAnomaly,
+  type Incident,
   type MetricAnomaly,
   type MetricKey,
 } from "@/lib/anomaly";
@@ -54,6 +59,7 @@ function tp(over: Partial<TimePoint> = {}): TimePoint {
     cacheHit: 70,
     cacheMiss: 30,
     avgLatencyMs: 42,
+    p95LatencyMs: 90,
     ...over,
   };
 }
@@ -267,10 +273,10 @@ describe("seriesFor", () => {
     expect(seriesFor([tp({ requests: 0, status5xx: 5 })], "errorRate5xx")).toEqual([0]);
   });
 
-  it("uses the bucket avgLatencyMs for both latency metrics", () => {
-    const pts = [tp({ avgLatencyMs: 42 })];
+  it("reads each latency metric from its own per-bucket aggregate", () => {
+    const pts = [tp({ avgLatencyMs: 42, p95LatencyMs: 210 })];
     expect(seriesFor(pts, "avgLatencyMs")).toEqual([42]);
-    expect(seriesFor(pts, "p95LatencyMs")).toEqual([42]);
+    expect(seriesFor(pts, "p95LatencyMs")).toEqual([210]);
   });
 
   it("returns an empty series for no points", () => {
@@ -329,5 +335,184 @@ describe("BREAKDOWNS", () => {
     for (const key of METRIC_KEYS) {
       expect(BREAKDOWNS[key].dims.length).toBeGreaterThan(0);
     }
+  });
+});
+
+// --- Incident engine --------------------------------------------------------
+
+/** Build a timeseries from per-bucket overrides, 1 minute apart from a base. */
+function series(overrides: Partial<TimePoint>[], baseMs = Date.parse("2026-06-01T00:00:00.000Z")): TimePoint[] {
+  return overrides.map((o, i) => tp({ t: new Date(baseMs + i * 60_000).toISOString(), ...o }));
+}
+
+/** Shorthand: a requests-only series from raw counts. */
+function requestSeries(counts: number[]): TimePoint[] {
+  return series(counts.map((requests) => ({ requests })));
+}
+
+describe("rollingBaseline", () => {
+  it("returns one baseline point per value", () => {
+    const b = rollingBaseline([1, 2, 3, 4, 5, 6], 4);
+    expect(b).toHaveLength(6);
+  });
+
+  it("uses the global center while history is too short, then goes local", () => {
+    const values = [10, 10, 10, 10, 10, 10, 10, 1000];
+    const b = rollingBaseline(values, 6);
+    // Early buckets fall back to the global median (10 dominates).
+    expect(b[0].center).toBeCloseTo(10, 6);
+    // The trailing window before the spike is all 10s -> local center 10.
+    expect(b[7].center).toBeCloseTo(10, 6);
+    expect(b[7].scale).toBeGreaterThan(0);
+  });
+
+  it("keeps scale strictly positive even on a perfectly flat history", () => {
+    const b = rollingBaseline([5, 5, 5, 5, 5, 5], 4);
+    for (const p of b) expect(p.scale).toBeGreaterThan(0);
+  });
+});
+
+describe("bucketScores", () => {
+  it("scores a flat series near zero and a spike far above", () => {
+    const s = bucketScores([20, 21, 19, 20, 21, 19, 20, 800], 6);
+    for (let i = 0; i < 7; i++) expect(Math.abs(s[i])).toBeLessThan(3.5);
+    expect(s[7]).toBeGreaterThan(5);
+  });
+
+  it("signs a drop negative", () => {
+    const s = bucketScores([100, 101, 99, 100, 101, 99, 100, 2], 6);
+    expect(s[7]).toBeLessThan(-5);
+  });
+});
+
+describe("detectIncidents", () => {
+  it("returns nothing for a short or flat series", () => {
+    expect(detectIncidents(requestSeries([1, 2, 3]), "requests")).toEqual([]);
+    expect(detectIncidents(requestSeries([50, 50, 50, 50, 50, 50]), "requests")).toEqual([]);
+  });
+
+  it("detects a single-bucket requests drop (unhealthy direction is down)", () => {
+    // requests is goodWhenUp -> only a DROP is an incident.
+    const pts = requestSeries([100, 101, 99, 100, 101, 99, 100, 2, 100, 101]);
+    const inc = detectIncidents(pts, "requests", { window: 6 });
+    expect(inc).toHaveLength(1);
+    expect(inc[0].direction).toBe("down");
+    expect(inc[0].startIdx).toBe(7);
+    expect(inc[0].endIdx).toBe(7);
+    expect(inc[0].buckets).toBe(1);
+    expect(inc[0].peakValue).toBe(2);
+    expect(inc[0].startTime).toBe(pts[7].t);
+  });
+
+  it("ignores a requests spike (rise is the healthy direction)", () => {
+    const pts = requestSeries([100, 101, 99, 100, 101, 99, 100, 900, 100, 101]);
+    expect(detectIncidents(pts, "requests", { window: 6 })).toEqual([]);
+  });
+
+  it("detects a sustained 5xx-rate incident and bridges a one-bucket dip", () => {
+    // errorRate5xx: bad direction is up; floor 0.005. Build rate via status5xx.
+    const base = { requests: 1000, status5xx: 1 }; // 0.001, below floor
+    const hot = { requests: 1000, status5xx: 200 }; // 0.2, well above
+    const dip = { requests: 1000, status5xx: 1 };
+    const pts = series([
+      base, base, base, base, base, base,
+      hot, hot, dip, hot, // one-bucket dip inside the event
+      base, base,
+    ]);
+    const inc = detectIncidents(pts, "errorRate5xx", { window: 6, maxGap: 1 });
+    expect(inc).toHaveLength(1);
+    expect(inc[0].direction).toBe("up");
+    expect(inc[0].startIdx).toBe(6);
+    expect(inc[0].endIdx).toBe(9); // bridged across the dip at idx 8
+    expect(inc[0].buckets).toBe(4);
+  });
+
+  it("respects the absolute floor: tiny rates never fire", () => {
+    // A big relative jump but still below the 5xx floor (0.005).
+    const lo = { requests: 100000, status5xx: 0 };
+    const hi = { requests: 100000, status5xx: 100 }; // 0.001, below floor
+    const pts = series([lo, lo, lo, lo, lo, lo, hi, hi, lo, lo]);
+    expect(detectIncidents(pts, "errorRate5xx", { window: 6 })).toEqual([]);
+  });
+
+  it("splits two separated events into two incidents", () => {
+    const pts = requestSeries([
+      100, 101, 99, 100, 101, 99, 100, // baseline
+      2, // drop 1
+      100, 101, 99, 100, 101, 99, 100, // recovery
+      3, // drop 2
+      100, 101,
+    ]);
+    const inc = detectIncidents(pts, "requests", { window: 6, maxGap: 1 });
+    expect(inc).toHaveLength(2);
+    // Both are single-bucket drops; sorted by severity (peak deviation).
+    const idxs = inc.map((i) => i.startIdx).sort((a, b) => a - b);
+    expect(idxs).toEqual([7, 15]);
+  });
+
+  it("honours minBuckets to drop blips", () => {
+    const pts = requestSeries([100, 101, 99, 100, 101, 99, 100, 2, 100, 101]);
+    expect(detectIncidents(pts, "requests", { window: 6, minBuckets: 2 })).toEqual([]);
+  });
+
+  it("orders incidents by descending severity and keeps it in 0..1", () => {
+    const pts = requestSeries([
+      100, 101, 99, 100, 101, 99, 100,
+      40, // mild drop
+      100, 101, 99, 100, 101, 99, 100,
+      1, // severe drop
+      100, 101,
+    ]);
+    const inc = detectIncidents(pts, "requests", { window: 6 });
+    expect(inc.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < inc.length; i++) {
+      expect(inc[i - 1].severity).toBeGreaterThanOrEqual(inc[i].severity);
+    }
+    for (const x of inc) {
+      expect(x.severity).toBeGreaterThanOrEqual(0);
+      expect(x.severity).toBeLessThanOrEqual(1);
+    }
+    // The severe drop (value 1) should outrank the mild one (value 40).
+    expect(inc[0].peakValue).toBe(1);
+  });
+
+  it("captures the baseline at the peak for 'what normal looked like'", () => {
+    const pts = requestSeries([200, 200, 200, 200, 200, 200, 200, 5, 200, 200]);
+    const inc = detectIncidents(pts, "requests", { window: 6 });
+    expect(inc[0].baselineAtPeak).toBeCloseTo(200, 6);
+    expect(inc[0].peakValue).toBe(5);
+  });
+});
+
+describe("detectIncidentsForMetrics", () => {
+  it("merges incidents across metrics sorted by severity", () => {
+    // A requests drop AND a 5xx rise in the same series.
+    const pts = series([
+      { requests: 1000, status5xx: 1 },
+      { requests: 1000, status5xx: 1 },
+      { requests: 1000, status5xx: 1 },
+      { requests: 1000, status5xx: 1 },
+      { requests: 1000, status5xx: 1 },
+      { requests: 1000, status5xx: 1 },
+      { requests: 5, status5xx: 1 }, // requests drop
+      { requests: 1000, status5xx: 400 }, // 5xx rise
+      { requests: 1000, status5xx: 1 },
+      { requests: 1000, status5xx: 1 },
+    ]);
+    const inc = detectIncidentsForMetrics(pts, ["requests", "errorRate5xx"], { window: 6 });
+    const metrics = new Set(inc.map((i) => i.metric));
+    expect(metrics.has("requests")).toBe(true);
+    expect(metrics.has("errorRate5xx")).toBe(true);
+    for (let i = 1; i < inc.length; i++) {
+      expect(inc[i - 1].severity).toBeGreaterThanOrEqual(inc[i].severity);
+    }
+  });
+
+  it("returns an empty feed when nothing is anomalous", () => {
+    const pts = requestSeries([100, 100, 100, 100, 100, 100, 100, 100]);
+    const feed: Incident[] = detectIncidentsForMetrics(pts, ["requests", "errorRate5xx", "p95LatencyMs"], {
+      window: 6,
+    });
+    expect(feed).toEqual([]);
   });
 });

@@ -134,6 +134,9 @@ export interface TimePoint {
   cacheHit: number;
   cacheMiss: number;
   avgLatencyMs: number;
+  /** Per-bucket p95 of TimeTaken (ms). Real on every source; falls back to
+   * avgLatencyMs only if a source cannot compute it for a given bucket. */
+  p95LatencyMs: number;
 }
 
 export interface TopNRow {
