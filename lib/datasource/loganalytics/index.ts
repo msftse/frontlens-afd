@@ -13,6 +13,7 @@ import type {
   GeoRow,
   LogsPage,
   PathRow,
+  ProxyChains,
   StatusClass,
   Summary,
   TimePoint,
@@ -27,8 +28,10 @@ import type {
   TimeseriesOptions,
   TopNOptions,
   VisitorsOptions,
+  WafDataSource,
 } from "@/lib/datasource/types";
 import { resolveTimeRange, type Filter } from "@/lib/filters/model";
+import { createLogAnalyticsWaf } from "@/lib/datasource/loganalytics/waf";
 import {
   autoBucketSeconds,
   baseProjection,
@@ -91,6 +94,15 @@ const PATHS_ORDER: Record<string, string> = {
 export class LogAnalyticsDataSource implements DataSource {
   readonly name = "loganalytics";
   private _client: LogsQueryClient | null = null;
+  private _waf: WafDataSource | null = null;
+
+  /** WAF surface over FrontDoorWebApplicationFirewallLog (same workspace). */
+  get waf(): WafDataSource {
+    if (!this._waf) {
+      this._waf = createLogAnalyticsWaf((kql) => this.run(kql));
+    }
+    return this._waf;
+  }
 
   private client(): LogsQueryClient {
     if (!this._client) {
@@ -216,7 +228,8 @@ export class LogAnalyticsDataSource implements DataSource {
       `            status5xx = countif(statusClass == 5),`,
       `            cacheHit = countif(${CACHE_HIT}),`,
       `            cacheMiss = countif(cacheStatus == "MISS"),`,
-      `            avgMs = avg(ms)`,
+      `            avgMs = avg(ms),`,
+      `            p95Ms = percentile(ms, 95)`,
       `          by t = bin(TimeGenerated, ${bucket}s)`,
       `| order by t asc`,
     ].join("\n");
@@ -233,6 +246,7 @@ export class LogAnalyticsDataSource implements DataSource {
       cacheHit: num(r.cacheHit),
       cacheMiss: num(r.cacheMiss),
       avgLatencyMs: num(r.avgMs),
+      p95LatencyMs: num(r.p95Ms),
     }));
   }
 
@@ -516,6 +530,39 @@ export class LogAnalyticsDataSource implements DataSource {
 
   async facetValues(f: Filter, dimension: Dimension, limit = 50): Promise<TopNRow[]> {
     return this.topN(f, { dimension, limit });
+  }
+
+  async proxyChains(f: Filter, limit = 12): Promise<ProxyChains> {
+    const { from, to } = resolveTimeRange(f);
+    const clamped = clampLimit(limit, 12, 100);
+    const prefix = this.prefix(f, from, to);
+    // Proxied = the direct peer (SocketIp) differs from the XFF ClientIp. Rank
+    // proxied clients by volume; carry the distinct-socket fan-out per client.
+    const proxyKql = [
+      prefix,
+      `| extend socketIp = tostring(socketIp_s)`,
+      `| where isnotempty(socketIp) and socketIp != clientIp`,
+      `| summarize requests = count(), distinctSockets = dcount(socketIp), socketIp = any(socketIp) by clientIp`,
+      `| order by requests desc`,
+      `| take ${clamped}`,
+    ].join("\n");
+    const totalsKql = [
+      prefix,
+      `| extend socketIp = tostring(socketIp_s)`,
+      `| summarize total = count(), proxied = countif(isnotempty(socketIp) and socketIp != clientIp)`,
+    ].join("\n");
+    const [pairRows, totalRows] = await Promise.all([this.run(proxyKql), this.run(totalsKql)]);
+    const t = totalRows[0] ?? {};
+    return {
+      total: num(t.total),
+      proxied: num(t.proxied),
+      pairs: pairRows.map((r) => ({
+        clientIp: str(r.clientIp),
+        socketIp: str(r.socketIp),
+        requests: num(r.requests),
+        distinctSockets: num(r.distinctSockets),
+      })),
+    };
   }
 }
 

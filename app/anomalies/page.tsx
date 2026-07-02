@@ -1,23 +1,41 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 import { Radar } from "lucide-react";
 
 import { useFilters, type ExcludeKey, type FacetKey } from "@/lib/filters/use-filters";
 import { useSummary, useTimeseries } from "@/lib/api/hooks";
+import { useReportedDataSource } from "@/lib/api/source";
 import {
   BREAKDOWNS,
   METRIC_CONFIG,
+  detectIncidentsForMetrics,
+  incidentZoomRange,
   scoreMetricAnomaly,
   worstAnomaly,
+  type Incident,
   type MetricKey,
 } from "@/lib/anomaly";
+import {
+  UNSUPPORTED_REASON,
+  isWafSupported,
+  partitionDimensions,
+  toSourceKind,
+} from "@/lib/datasource/capabilities";
 import { decodeStatus, filterToSearchParams } from "@/lib/filters/model";
 import type { Dimension } from "@/lib/domain/types";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricStrip } from "@/components/anomalies/metric-strip";
 import { MetricTrend } from "@/components/anomalies/metric-trend";
+import { MetricOverlay } from "@/components/anomalies/metric-overlay";
+import { IncidentFeed } from "@/components/anomalies/incident-feed";
+import { IncidentTimeline } from "@/components/anomalies/incident-timeline";
+import { WhatsDifferent } from "@/components/anomalies/whats-different";
+import { ProxyPanel } from "@/components/anomalies/proxy-panel";
+import { AlertsPanel } from "@/components/anomalies/alerts-panel";
+import { WafSection } from "@/components/anomalies/waf-section";
 import {
   BreakdownPanel,
   mergeFilter,
@@ -122,12 +140,47 @@ export default function AnomaliesPage() {
 
   const anomalies = scoreMetricAnomaly(summary.data);
   const [metricParam, setMetric] = useQueryState("metric");
+
+  // Stable reference so incident detection (and everything keyed off `points`)
+  // only recomputes when the timeseries actually changes, not on every render
+  // while the query is loading (`ts.data` is undefined then).
+  const points = useMemo(() => ts.data ?? [], [ts.data]);
+  const incidents = useMemo(
+    () => detectIncidentsForMetrics(points, METRIC_KEYS),
+    [points],
+  );
+
   const selected: MetricKey = isMetricKey(metricParam)
     ? metricParam
-    : (worstAnomaly(anomalies) ?? "requests");
+    : (incidents[0]?.metric ?? worstAnomaly(anomalies) ?? "requests");
 
   const breakdown = BREAKDOWNS[selected];
   const prefilter = breakdown.prefilter;
+
+  // Capability gating: on Live (Front Door access logs) some breakdown
+  // dimensions have no real backing data (ASN, UA family, city). We hide those
+  // rather than show fabricated values, and note what was hidden and why.
+  const reportedSource = useReportedDataSource();
+  const source = toSourceKind(reportedSource);
+  const { supported: shownDims, hidden: hiddenDims } = useMemo(
+    () => partitionDimensions(source, breakdown.dims),
+    [source, breakdown.dims],
+  );
+
+  const windowStart = points[0]?.t;
+  const windowEnd = points[points.length - 1]?.t;
+
+  // The incident currently being investigated (drives the "what's different"
+  // lift panel). Cleared when the user picks a different metric from the strip.
+  const [activeIncident, setActiveIncident] = useState<Incident | null>(null);
+
+  /** Select the incident's metric, zoom the range to its window, and diff it. */
+  const investigate = (incident: Incident) => {
+    setMetric(incident.metric);
+    setActiveIncident(incident);
+    const range = incidentZoomRange(points, incident.startIdx, incident.endIdx);
+    if (range) fh.setCustomRange(range.from, range.to);
+  };
 
   // The page owns all stateful wiring + routing; panels stay presentational and
   // call back through this typed `on` object. Open-in-* builds a transiently
@@ -154,14 +207,56 @@ export default function AnomaliesPage() {
         description="Spot which KPIs moved, see when the spike happened, then decompose what's driving it."
       />
 
-      <MetricStrip anomalies={anomalies} selected={selected} onSelect={(k) => setMetric(k)} />
-
-      <MetricTrend
-        metric={selected}
-        points={ts.data ?? []}
-        onZoom={(from, to) => fh.setCustomRange(from, to)}
-        loading={ts.isLoading}
+      <MetricStrip
+        anomalies={anomalies}
+        selected={selected}
+        onSelect={(k) => {
+          setMetric(k);
+          setActiveIncident(null);
+        }}
       />
+
+      <IncidentTimeline
+        incidents={incidents}
+        windowStart={windowStart}
+        windowEnd={windowEnd}
+        onInvestigate={investigate}
+      />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <MetricTrend
+            metric={selected}
+            points={points}
+            onZoom={(from, to) => fh.setCustomRange(from, to)}
+            loading={ts.isLoading}
+          />
+        </div>
+        <IncidentFeed
+          incidents={incidents}
+          loading={ts.isLoading}
+          selectedMetric={selected}
+          onInvestigate={investigate}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <MetricOverlay points={points} loading={ts.isLoading} />
+        </div>
+        <ProxyPanel filter={fh.filter} />
+      </div>
+
+      <AlertsPanel incidents={incidents} />
+
+      {activeIncident && (
+        <WhatsDifferent
+          incident={activeIncident}
+          baseFilter={fh.filter}
+          source={reportedSource}
+          points={points}
+        />
+      )}
 
       <div className="flex items-center gap-2 pt-1">
         <Radar className="size-4 text-accent" />
@@ -171,7 +266,7 @@ export default function AnomaliesPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {breakdown.dims.map((dim) => (
+        {shownDims.map((dim) => (
           <BreakdownPanel
             key={`${dim.dimension}:${dim.label}`}
             metric={selected}
@@ -182,6 +277,22 @@ export default function AnomaliesPage() {
           />
         ))}
       </div>
+
+      {hiddenDims.length > 0 && (
+        <p className="text-xs text-faint">
+          Not shown on this source:{" "}
+          {hiddenDims.map((d, i) => (
+            <span key={d.dimension}>
+              {i > 0 && ", "}
+              <span className="text-muted">{d.label}</span> (
+              {UNSUPPORTED_REASON[d.dimension] ?? "unavailable"})
+            </span>
+          ))}
+          .
+        </p>
+      )}
+
+      {isWafSupported(source) && <WafSection filter={fh.filter} />}
     </div>
   );
 }

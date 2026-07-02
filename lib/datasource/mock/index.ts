@@ -4,6 +4,7 @@ import type {
   GeoRow,
   LogsPage,
   PathRow,
+  ProxyChains,
   StatusClass,
   Summary,
   TimePoint,
@@ -19,8 +20,10 @@ import type {
   TimeseriesOptions,
   TopNOptions,
   VisitorsOptions,
+  WafDataSource,
 } from "@/lib/datasource/types";
 import { resolveTimeRange, type Filter } from "@/lib/filters/model";
+import { createMockWaf } from "@/lib/datasource/mock/waf";
 import { buildMatchContext, matchesFilter } from "@/lib/filters/match";
 import { generateDataset, type MockDataset } from "@/lib/datasource/mock/generate";
 
@@ -183,6 +186,15 @@ function sortRows<T>(rows: T[], by: (r: T) => number, dir: "asc" | "desc") {
 
 export class MockDataSource implements DataSource {
   readonly name = "mock";
+  private _waf: WafDataSource | null = null;
+
+  /** WAF surface, synthesized from the same access records (see mock/waf.ts). */
+  get waf(): WafDataSource {
+    if (!this._waf) {
+      this._waf = createMockWaf((f) => filterRecords(f).rows);
+    }
+    return this._waf;
+  }
 
   async summary(filter: Filter): Promise<Summary> {
     const { rows, from, to } = filterRecords(filter);
@@ -206,7 +218,7 @@ export class MockDataSource implements DataSource {
     const spanSec = (to.getTime() - from.getTime()) / 1000;
     const bucket = (opts.bucketSeconds ?? autoBucketSeconds(spanSec)) * 1000;
     const startAligned = Math.floor(from.getTime() / bucket) * bucket;
-    const buckets = new Map<number, TimePoint & { _visitors: Set<string>; _lat: number }>();
+    const buckets = new Map<number, TimePoint & { _visitors: Set<string>; _lat: number; _lats: number[] }>();
 
     for (let t = startAligned; t <= to.getTime(); t += bucket) {
       buckets.set(t, blankPoint(new Date(t).toISOString()));
@@ -219,6 +231,7 @@ export class MockDataSource implements DataSource {
       p.bytes += r.responseBytes;
       p._visitors.add(r.clientIp);
       p._lat += r.timeTaken;
+      p._lats.push(r.timeTaken);
       const cls = statusClass(r.status);
       if (cls === "2xx") p.status2xx++;
       else if (cls === "3xx") p.status3xx++;
@@ -230,9 +243,11 @@ export class MockDataSource implements DataSource {
     return [...buckets.values()].map((p) => {
       p.uniqueVisitors = p._visitors.size;
       p.avgLatencyMs = p.requests ? (p._lat / p.requests) * 1000 : 0;
-      const { _visitors, _lat, ...clean } = p;
+      p.p95LatencyMs = percentile([...p._lats].sort((a, b) => a - b), 95) * 1000;
+      const { _visitors, _lat, _lats, ...clean } = p;
       void _visitors;
       void _lat;
+      void _lats;
       return clean;
     });
   }
@@ -382,11 +397,45 @@ export class MockDataSource implements DataSource {
     const { rows } = filterRecords(filter);
     return computeTopN(rows, { dimension, limit });
   }
+
+  async proxyChains(filter: Filter, limit = 12): Promise<ProxyChains> {
+    const { rows } = filterRecords(filter);
+    return computeProxyChains(rows, limit);
+  }
 }
 
 // ---- shared aggregation helpers ----
 
-function blankPoint(t: string): TimePoint & { _visitors: Set<string>; _lat: number } {
+/** Count proxied requests (SocketIp != ClientIp) and rank the top proxied clients. */
+function computeProxyChains(rows: AccessLogRecord[], limit: number): ProxyChains {
+  let proxied = 0;
+  // clientIp -> { requests, sockets }
+  const byClient = new Map<string, { requests: number; sockets: Set<string> }>();
+  for (const r of rows) {
+    if (r.socketIp === r.clientIp) continue;
+    proxied++;
+    let e = byClient.get(r.clientIp);
+    if (!e) {
+      e = { requests: 0, sockets: new Set() };
+      byClient.set(r.clientIp, e);
+    }
+    e.requests++;
+    e.sockets.add(r.socketIp);
+  }
+  const pairs = [...byClient.entries()]
+    .map(([clientIp, e]) => ({
+      clientIp,
+      // Representative socket (first seen); distinctSockets carries the fan-out.
+      socketIp: e.sockets.values().next().value ?? "",
+      requests: e.requests,
+      distinctSockets: e.sockets.size,
+    }))
+    .sort((a, b) => b.requests - a.requests)
+    .slice(0, limit);
+  return { total: rows.length, proxied, pairs };
+}
+
+function blankPoint(t: string): TimePoint & { _visitors: Set<string>; _lat: number; _lats: number[] } {
   return {
     t,
     requests: 0,
@@ -399,8 +448,10 @@ function blankPoint(t: string): TimePoint & { _visitors: Set<string>; _lat: numb
     cacheHit: 0,
     cacheMiss: 0,
     avgLatencyMs: 0,
+    p95LatencyMs: 0,
     _visitors: new Set(),
     _lat: 0,
+    _lats: [],
   };
 }
 

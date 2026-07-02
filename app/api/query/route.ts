@@ -6,6 +6,7 @@ import { authEnabled } from "@/lib/auth/enabled";
 import { getDataSource, resolveSourceKind } from "@/lib/datasource";
 import { filterSchema } from "@/lib/filters/model";
 import type { Dimension } from "@/lib/domain/types";
+import type { WafDimension } from "@/lib/datasource/types";
 
 /**
  * Single BFF dispatcher. The browser never talks to a data source directly,
@@ -30,6 +31,30 @@ const DIMENSIONS = new Set<Dimension>([
 function dim(v: unknown): Dimension | undefined {
   if (v === undefined || v === null) return "country";
   return typeof v === "string" && DIMENSIONS.has(v as Dimension) ? (v as Dimension) : undefined;
+}
+
+const WAF_DIMENSIONS = new Set<WafDimension>([
+  "ruleName", "ruleGroup", "action", "clientIp", "country", "url", "message",
+]);
+function wafDim(v: unknown): WafDimension | undefined {
+  if (v === undefined || v === null) return "ruleName";
+  return typeof v === "string" && WAF_DIMENSIONS.has(v as WafDimension) ? (v as WafDimension) : undefined;
+}
+
+/** Typed empty result for a WAF resource on a source without WAF logs. */
+function emptyWaf(resource: string): unknown {
+  switch (resource) {
+    case "wafSummary":
+      return { total: 0, blocked: 0, logged: 0, scored: 0, distinctIps: 0, distinctRules: 0, blockRate: 0 };
+    case "wafTimeseries":
+      return [];
+    case "wafTopN":
+      return [];
+    case "wafEvents":
+      return { rows: [], total: 0, nextCursor: null };
+    default:
+      return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -120,6 +145,45 @@ export async function POST(req: NextRequest) {
         const dimension = dim(o.dimension);
         if (!dimension) return badRequest(`Invalid dimension: ${String(o.dimension)}`);
         return json(await ds.facetValues(f, dimension, num(o.limit)));
+      }
+      case "proxyChains":
+        return json(await ds.proxyChains(f, num(o.limit)));
+      case "wafSummary":
+      case "wafTimeseries":
+      case "wafTopN":
+      case "wafEvents": {
+        if (!ds.waf) {
+          // Source has no WAF logs; return a well-typed empty result so the UI
+          // can hide WAF features without erroring.
+          return json(emptyWaf(parsed.resource));
+        }
+        switch (parsed.resource) {
+          case "wafSummary":
+            return json(await ds.waf.summary(f));
+          case "wafTimeseries":
+            return json(await ds.waf.timeseries(f, { bucketSeconds: num(o.bucketSeconds) }));
+          case "wafTopN": {
+            const dimension = wafDim(o.dimension);
+            if (!dimension) return badRequest(`Invalid WAF dimension: ${String(o.dimension)}`);
+            return json(
+              await ds.waf.topN(f, {
+                dimension,
+                limit: num(o.limit),
+                action: typeof o.action === "string" ? o.action : undefined,
+              }),
+            );
+          }
+          case "wafEvents":
+            return json(
+              await ds.waf.events(f, {
+                limit: num(o.limit),
+                cursor: (o.cursor as string) ?? null,
+                sortDir: o.sortDir as never,
+                action: typeof o.action === "string" ? o.action : undefined,
+              }),
+            );
+        }
+        break;
       }
       default:
         return badRequest(`Unknown resource: ${parsed.resource}`);

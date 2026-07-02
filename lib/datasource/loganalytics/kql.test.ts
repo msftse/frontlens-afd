@@ -187,6 +187,18 @@ describe("base + geo projections", () => {
     expect(b).toContain("statusClass = case(");
     expect(b).toContain("asnOrg = '-'");
   });
+  it("derives uaFamily and uaOs from the real UA string (not constants)", () => {
+    const b = baseProjection();
+    expect(b).toContain("uaFamily = case(");
+    expect(b).toContain("'Googlebot'");
+    expect(b).toContain("'Chrome'");
+    // Edge must be tested before Chrome (its UA contains 'Chrome').
+    expect(b.indexOf("'Edge'")).toBeLessThan(b.indexOf("'Chrome'"));
+    expect(b).toContain("uaOs = case(");
+    expect(b).toContain("'Windows'");
+    // uaFamily is no longer a hardcoded empty constant.
+    expect(b).not.toContain("uaFamily = ''");
+  });
   it("geo projection derives city/lat/lon from geo_info", () => {
     const g = geoProjection();
     expect(g).toContain("geo_info_from_ip_address(clientIp)");

@@ -6,6 +6,7 @@ import type {
   GeoRow,
   LogsPage,
   PathRow,
+  ProxyChains,
   StatusClass,
   Summary,
   TimePoint,
@@ -193,6 +194,9 @@ export class ClickHouseDataSource implements DataSource {
     const hit = useRollup ? `sumIf(requests, ${CACHE_HIT})` : `countIf(${CACHE_HIT})`;
     const miss = useRollup ? "sumIf(requests, cacheStatus = 'MISS')" : "countIf(cacheStatus = 'MISS')";
     const avgLat = useRollup ? "sum(latencySum) / greatest(sum(requests), 1)" : "avg(timeTaken)";
+    const p95Lat = useRollup
+      ? "arrayElement(quantilesMerge(0.95)(latency), 1)"
+      : "quantileExact(0.95)(timeTaken)";
 
     const sql = `
       SELECT toStartOfInterval(${timeCol}, INTERVAL ${bucket} SECOND) AS t,
@@ -200,7 +204,7 @@ export class ClickHouseDataSource implements DataSource {
              ${cls(2)} AS status2xx, ${cls(3)} AS status3xx,
              ${cls(4)} AS status4xx, ${cls(5)} AS status5xx,
              ${hit} AS cacheHit, ${miss} AS cacheMiss,
-             ${avgLat} AS avgLat
+             ${avgLat} AS avgLat, ${p95Lat} AS p95Lat
       FROM ${useRollup ? ROLLUP_TRAFFIC : TABLE} WHERE ${where}
       GROUP BY t ORDER BY t
       WITH FILL FROM toStartOfInterval(fromUnixTimestamp64Milli(${fromP}), INTERVAL ${bucket} SECOND)
@@ -218,6 +222,7 @@ export class ClickHouseDataSource implements DataSource {
       cacheHit: n(r.cacheHit),
       cacheMiss: n(r.cacheMiss),
       avgLatencyMs: n(r.avgLat) * 1000,
+      p95LatencyMs: n(r.p95Lat) * 1000,
     }));
   }
 
@@ -448,6 +453,33 @@ export class ClickHouseDataSource implements DataSource {
 
   async facetValues(f: Filter, dimension: Dimension, limit = 50): Promise<TopNRow[]> {
     return this.topN(f, { dimension, limit });
+  }
+
+  async proxyChains(f: Filter, limit = 12): Promise<ProxyChains> {
+    const { where, params } = whereFor(f);
+    const lim = Math.max(1, Math.min(100, limit));
+    const pairsSql = `
+      SELECT clientIp, any(socketIp) AS socketIp,
+             count() AS requests, uniqExact(socketIp) AS distinctSockets
+      FROM ${TABLE} WHERE ${where} AND socketIp != clientIp AND socketIp != ''
+      GROUP BY clientIp ORDER BY requests DESC LIMIT ${lim}`;
+    const totalsSql = `
+      SELECT count() AS total, countIf(socketIp != clientIp AND socketIp != '') AS proxied
+      FROM ${TABLE} WHERE ${where}`;
+    const [pairs, [totals]] = await Promise.all([
+      this.run<Record<string, unknown>>(pairsSql, params),
+      this.run<Record<string, unknown>>(totalsSql, params),
+    ]);
+    return {
+      total: n(totals?.total),
+      proxied: n(totals?.proxied),
+      pairs: pairs.map((r) => ({
+        clientIp: String(r.clientIp ?? ""),
+        socketIp: String(r.socketIp ?? ""),
+        requests: n(r.requests),
+        distinctSockets: n(r.distinctSockets),
+      })),
+    };
   }
 }
 

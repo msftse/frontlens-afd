@@ -3,17 +3,25 @@ import type {
   GeoRow,
   LogsPage,
   PathRow,
+  ProxyChains,
   Summary,
   TimePoint,
   TopNRow,
   VisitorDetail,
   VisitorRow,
+  WafEventsPage,
+  WafSummary,
+  WafTimePoint,
+  WafTopRow,
 } from "@/lib/domain/types";
 import type {
   LogsOptions,
   PathExplorerOptions,
   TopNOptions,
   VisitorsOptions,
+  WafDimension,
+  WafEventsOptions,
+  WafTopOptions,
 } from "@/lib/datasource/types";
 import type { Filter } from "@/lib/filters/model";
 import { getSelectedSource, reportDataSource } from "@/lib/api/source";
@@ -61,4 +69,11 @@ export const api = {
   logs: (f: Filter, o?: LogsOptions) => call<LogsPage>("logs", f, { ...o }),
   facetValues: (f: Filter, dimension: Dimension, limit?: number) =>
     call<TopNRow[]>("facetValues", f, { dimension, limit }),
+  proxyChains: (f: Filter, limit?: number) => call<ProxyChains>("proxyChains", f, { limit }),
+  wafSummary: (f: Filter) => call<WafSummary>("wafSummary", f),
+  wafTimeseries: (f: Filter, bucketSeconds?: number) =>
+    call<WafTimePoint[]>("wafTimeseries", f, { bucketSeconds }),
+  wafTopN: (f: Filter, o: WafTopOptions) =>
+    call<WafTopRow[]>("wafTopN", f, { dimension: o.dimension as WafDimension, limit: o.limit, action: o.action }),
+  wafEvents: (f: Filter, o?: WafEventsOptions) => call<WafEventsPage>("wafEvents", f, { ...o }),
 };

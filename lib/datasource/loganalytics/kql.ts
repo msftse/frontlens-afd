@@ -75,8 +75,32 @@ export function baseProjection(): string {
     "    deviceType = case(userAgent matches regex @'(?i)bot|crawler|spider|curl|wget|python-requests', 'bot',",
     "                      userAgent matches regex @'(?i)mobile|android|iphone|ipod', 'mobile',",
     "                      userAgent matches regex @'(?i)ipad|tablet', 'tablet', 'desktop')",
-    // Fields AFD logs don't carry - kept as constants so projections stay uniform.
-    "| extend asn = 0, asnOrg = '-', uaFamily = '', uaOs = ''",
+    // Browser / client family parsed from the real UA string. Order matters:
+    // bots first, then Edge/Opera before Chrome (their UAs contain "Chrome"),
+    // Chrome before Safari (Chrome UAs contain "Safari").
+    "| extend uaFamily = case(",
+    "        userAgent matches regex @'(?i)googlebot', 'Googlebot',",
+    "        userAgent matches regex @'(?i)bingbot', 'bingbot',",
+    "        userAgent matches regex @'(?i)curl', 'curl',",
+    "        userAgent matches regex @'(?i)python-requests', 'python-requests',",
+    "        userAgent matches regex @'(?i)wget', 'Wget',",
+    "        userAgent matches regex @'(?i)bot|crawler|spider', 'Other bot',",
+    "        userAgent matches regex @'(?i)edg/|edge', 'Edge',",
+    "        userAgent matches regex @'(?i)opr/|opera', 'Opera',",
+    "        userAgent matches regex @'(?i)firefox|fxios', 'Firefox',",
+    "        userAgent matches regex @'(?i)chrome|crios', 'Chrome',",
+    "        userAgent matches regex @'(?i)safari', 'Safari',",
+    "        isempty(userAgent), '(none)', 'Other')",
+    // Operating system, likewise parsed from the UA string.
+    "| extend uaOs = case(",
+    "        userAgent matches regex @'(?i)windows', 'Windows',",
+    "        userAgent matches regex @'(?i)android', 'Android',",
+    "        userAgent matches regex @'(?i)iphone|ipad|ipod|ios', 'iOS',",
+    "        userAgent matches regex @'(?i)mac os x|macintosh', 'macOS',",
+    "        userAgent matches regex @'(?i)linux', 'Linux',",
+    "        '')",
+    // Fields AFD logs still don't carry - kept as constants so projections stay uniform.
+    "| extend asn = 0, asnOrg = '-'",
   ].join("\n");
 }
 
@@ -184,6 +208,8 @@ export function facetConditions(f: Filter): string[] {
   inList("clientIp", f.clientIp);
   inList("method", f.method);
   inList("deviceType", f.deviceType);
+  // uaFamily is now a real projected column (parsed from the UA string).
+  inList("uaFamily", f.uaFamily);
   inList("pop", f.pop);
   inList("cacheStatus", f.cacheStatus);
   inList("ja4", f.ja4);
@@ -202,8 +228,8 @@ export function facetConditions(f: Filter): string[] {
   }
 
   // Negated facets ("Exclude"): mirror the supported positive facets, negated
-  // (`!in` / `not (...)`). Like the positive side, city/asnOrg/uaFamily are not
-  // expressible against AFD logs (constants / geo-only), so they're omitted.
+  // (`!in` / `not (...)`). city/asnOrg are still not expressible against AFD
+  // logs (geo-only / constant), so they're omitted; uaFamily now is.
   const n = f.not;
   if (n) {
     const notInList = (col: string, values: readonly string[] | undefined) => {
@@ -217,6 +243,7 @@ export function facetConditions(f: Filter): string[] {
     notInList("clientIp", n.clientIp);
     notInList("method", n.method);
     notInList("deviceType", n.deviceType);
+    notInList("uaFamily", n.uaFamily);
     notInList("pop", n.pop);
     notInList("cacheStatus", n.cacheStatus);
     notInList("ja4", n.ja4);

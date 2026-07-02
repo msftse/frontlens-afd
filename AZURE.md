@@ -19,9 +19,12 @@ resource groups, and names.
 | --- | --- | --- |
 | **Dashboard app** | [infra/main.bicep](infra/main.bicep) | The FrontLens container (UI + BFF), a Container Apps environment, an Azure Container Registry, a user-assigned managed identity, and Log Analytics for the app's own logs. |
 | **Front Door + log source** *(optional)* | [infra/afd-e2e.bicep](infra/afd-e2e.bicep) | A self-contained Premium Azure Front Door + WAF in front of a "hello world" origin, streaming access / WAF / health-probe logs to Log Analytics, a ready-made source for **Live** mode. |
+| **Alert rules** *(optional)* | [infra/alerts.bicep](infra/alerts.bicep) | Native Azure Monitor scheduled-query (log) alerts over the Front Door workspace - 5xx error rate, p95 latency, and WAF block surge - plus an Action Group that notifies email/webhook. No extra compute; reuses the existing log pipeline. |
 
 Deploy only the dashboard if you already have a Front Door whose access logs land
-in a Log Analytics workspace. Deploy both to stand up an end-to-end demo.
+in a Log Analytics workspace. Deploy both to stand up an end-to-end demo. Add the
+alert stack to get delivered notifications for the same incidents the Anomalies
+page surfaces.
 
 ## Stack 1: the dashboard app
 
@@ -67,6 +70,30 @@ it so there are logs to explore:
 ```bash
 npm run gen:traffic -- --host <your-endpoint>.azurefd.net --count 1500
 ```
+
+## Stack 3: alert rules (optional)
+
+Provision native Azure Monitor scheduled-query alerts over the **same** Front Door
+workspace, so the incidents the Anomalies page surfaces also arrive as
+email/webhook notifications. No extra compute is created - the rules query the
+existing logs on a schedule.
+
+```bash
+# Resolve the workspace resource ID (the e2e stack outputs it):
+WS_ID=$(az deployment group show -g <e2e-resource-group> -n afd-e2e \
+          --query properties.outputs.logAnalyticsResourceId.value -o tsv)
+
+az deployment group create -g <e2e-resource-group> -f infra/alerts.bicep \
+  -p workspaceResourceId="$WS_ID" \
+     alertEmail=you@example.com \
+     enableAlerts=true
+```
+
+Rules are disabled unless you pass `enableAlerts=true` **and** an `alertEmail` (or
+`alertWebhookUrl`), so a bare deploy never creates a noisy alert with nowhere to
+send. Tune thresholds with `error5xxPercentThreshold`, `p95LatencyMsThreshold`,
+and `wafBlockThreshold`. To notify Teams/Slack, pass an incoming-webhook URL as
+`alertWebhookUrl`.
 
 ## Wiring up Live mode
 
