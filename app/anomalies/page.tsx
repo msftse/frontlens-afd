@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 import { Radar } from "lucide-react";
@@ -30,6 +30,7 @@ import { MetricStrip } from "@/components/anomalies/metric-strip";
 import { MetricTrend } from "@/components/anomalies/metric-trend";
 import { IncidentFeed } from "@/components/anomalies/incident-feed";
 import { IncidentTimeline } from "@/components/anomalies/incident-timeline";
+import { WhatsDifferent } from "@/components/anomalies/whats-different";
 import {
   BreakdownPanel,
   mergeFilter,
@@ -151,7 +152,8 @@ export default function AnomaliesPage() {
   // Capability gating: on Live (Front Door access logs) some breakdown
   // dimensions have no real backing data (ASN, UA family, city). We hide those
   // rather than show fabricated values, and note what was hidden and why.
-  const source = toSourceKind(useReportedDataSource());
+  const reportedSource = useReportedDataSource();
+  const source = toSourceKind(reportedSource);
   const { supported: shownDims, hidden: hiddenDims } = useMemo(
     () => partitionDimensions(source, breakdown.dims),
     [source, breakdown.dims],
@@ -160,9 +162,14 @@ export default function AnomaliesPage() {
   const windowStart = points[0]?.t;
   const windowEnd = points[points.length - 1]?.t;
 
-  /** Select the incident's metric and zoom the global range to its window. */
+  // The incident currently being investigated (drives the "what's different"
+  // lift panel). Cleared when the user picks a different metric from the strip.
+  const [activeIncident, setActiveIncident] = useState<Incident | null>(null);
+
+  /** Select the incident's metric, zoom the range to its window, and diff it. */
   const investigate = (incident: Incident) => {
     setMetric(incident.metric);
+    setActiveIncident(incident);
     const range = incidentZoomRange(points, incident.startIdx, incident.endIdx);
     if (range) fh.setCustomRange(range.from, range.to);
   };
@@ -192,7 +199,14 @@ export default function AnomaliesPage() {
         description="Spot which KPIs moved, see when the spike happened, then decompose what's driving it."
       />
 
-      <MetricStrip anomalies={anomalies} selected={selected} onSelect={(k) => setMetric(k)} />
+      <MetricStrip
+        anomalies={anomalies}
+        selected={selected}
+        onSelect={(k) => {
+          setMetric(k);
+          setActiveIncident(null);
+        }}
+      />
 
       <IncidentTimeline
         incidents={incidents}
@@ -217,6 +231,15 @@ export default function AnomaliesPage() {
           onInvestigate={investigate}
         />
       </div>
+
+      {activeIncident && (
+        <WhatsDifferent
+          incident={activeIncident}
+          baseFilter={fh.filter}
+          source={reportedSource}
+          earliest={windowStart}
+        />
+      )}
 
       <div className="flex items-center gap-2 pt-1">
         <Radar className="size-4 text-accent" />
