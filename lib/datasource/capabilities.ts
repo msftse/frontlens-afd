@@ -19,7 +19,8 @@ import type { SourceKind } from "@/lib/datasource";
 /** Dimensions that are NOT real on Azure Front Door access logs. */
 const LOG_ANALYTICS_UNSUPPORTED: readonly Dimension[] = [
   "asnOrg", // AFD logs have no ASN; adapter returns a constant "-"
-  "uaFamily", // AFD logs carry the raw UA only; no parsed family
+  // `uaFamily` IS now derived from the real UA string via KQL regex (like
+  // deviceType), so it is a real Live dimension and no longer hidden.
   // `city` IS derivable via geo_info_from_ip_address(), but only on the geo /
   // visitor views that opt into the per-row cost, so it is not offered as a
   // general breakdown dimension on Live.
@@ -29,7 +30,6 @@ const LOG_ANALYTICS_UNSUPPORTED: readonly Dimension[] = [
 /** Human-readable reason a dimension is hidden on a given source. */
 export const UNSUPPORTED_REASON: Partial<Record<Dimension, string>> = {
   asnOrg: "Front Door access logs don't include ASN / network",
-  uaFamily: "Front Door access logs include only the raw user agent",
   city: "City needs a geo lookup and isn't available as a Live breakdown",
 };
 

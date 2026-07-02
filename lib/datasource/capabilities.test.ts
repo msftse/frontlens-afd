@@ -24,14 +24,13 @@ describe("toSourceKind", () => {
 });
 
 describe("isDimensionSupported", () => {
-  it("hides ASN, UA family and city on Log Analytics (real AFD gaps)", () => {
+  it("hides ASN and city on Log Analytics (real AFD gaps)", () => {
     expect(isDimensionSupported("loganalytics", "asnOrg")).toBe(false);
-    expect(isDimensionSupported("loganalytics", "uaFamily")).toBe(false);
     expect(isDimensionSupported("loganalytics", "city")).toBe(false);
   });
 
-  it("keeps the real AFD dimensions on Log Analytics", () => {
-    for (const d of ["path", "country", "clientIp", "pop", "ja4", "status", "errorInfo"] as Dimension[]) {
+  it("keeps the real AFD dimensions on Log Analytics, including derived uaFamily", () => {
+    for (const d of ["path", "country", "clientIp", "pop", "ja4", "status", "errorInfo", "uaFamily"] as Dimension[]) {
       expect(isDimensionSupported("loganalytics", d)).toBe(true);
     }
   });
@@ -57,13 +56,13 @@ describe("partitionDimensions", () => {
     { dimension: "path" as Dimension, label: "Top paths" },
     { dimension: "asnOrg" as Dimension, label: "Networks" },
     { dimension: "country" as Dimension, label: "Countries" },
-    { dimension: "uaFamily" as Dimension, label: "User agents" },
+    { dimension: "city" as Dimension, label: "Cities" },
   ];
 
   it("splits supported vs hidden on Log Analytics preserving order", () => {
     const { supported, hidden } = partitionDimensions("loganalytics", dims);
     expect(supported.map((d) => d.dimension)).toEqual(["path", "country"]);
-    expect(hidden.map((d) => d.dimension)).toEqual(["asnOrg", "uaFamily"]);
+    expect(hidden.map((d) => d.dimension)).toEqual(["asnOrg", "city"]);
   });
 
   it("hides nothing on mock", () => {
