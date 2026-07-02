@@ -159,4 +159,23 @@ describe("baselineWindowFor", () => {
       }),
     ).toBeNull();
   });
+
+  it("yields a valid baseline for a single-bucket incident once the end is extended by one bucket", () => {
+    // Regression: incident timestamps are bucket STARTs, so a single-bucket
+    // incident has start == end and a raw window is zero-width (null baseline).
+    // The WhatsDifferent panel extends the end by one bucket width before
+    // calling baselineWindowFor; model that here.
+    const start = "2026-06-01T12:00:00.000Z";
+    const rawEnd = start; // single bucket
+    expect(baselineWindowFor(start, rawEnd)).toBeNull();
+
+    const bucketMs = 5 * 60_000; // 5-minute buckets
+    const extendedEnd = new Date(Date.parse(rawEnd) + bucketMs).toISOString();
+    const w = baselineWindowFor(start, extendedEnd)!;
+    expect(w).not.toBeNull();
+    // Baseline still ends where the incident begins (its start bucket).
+    expect(w.to).toBe(start);
+    // 5m window * 4 = 20m baseline before the incident.
+    expect(Date.parse(w.to) - Date.parse(w.from)).toBe(4 * bucketMs);
+  });
 });

@@ -50,11 +50,12 @@ export function IncidentTimeline({
     return incidents.map((inc) => {
       const s = Date.parse(inc.startTime);
       const e = Date.parse(inc.endTime);
-      const leftPct = ((s - from) / span) * 100;
-      // Ensure single-bucket incidents remain visible with a small minimum width.
+      const leftPct = Math.min(98.8, Math.max(0, ((s - from) / span) * 100));
+      // Ensure single-bucket incidents stay visible (min width) but never let a
+      // segment run past the track's right edge (left + width <= 100).
       const rawWidth = ((e - s) / span) * 100;
-      const widthPct = Math.max(1.2, rawWidth);
-      return { incident: inc, leftPct: Math.min(98.8, Math.max(0, leftPct)), widthPct };
+      const widthPct = Math.min(100 - leftPct, Math.max(1.2, rawWidth));
+      return { incident: inc, leftPct, widthPct };
     });
   }, [incidents, from, span]);
 

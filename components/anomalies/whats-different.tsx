@@ -3,9 +3,9 @@
 import { useMemo } from "react";
 import { GitCompareArrows, Sparkles } from "lucide-react";
 
-import type { Dimension } from "@/lib/domain/types";
+import type { Dimension, TimePoint } from "@/lib/domain/types";
 import type { Filter } from "@/lib/filters/model";
-import type { Incident } from "@/lib/anomaly";
+import { bucketWidthMs, type Incident } from "@/lib/anomaly";
 import { computeLift, baselineWindowFor, type LiftRow } from "@/lib/lift";
 import { partitionDimensions, toSourceKind } from "@/lib/datasource/capabilities";
 import { useTopN } from "@/lib/api/hooks";
@@ -49,25 +49,38 @@ export function WhatsDifferent({
   incident,
   baseFilter,
   source,
+  points,
   earliest,
 }: {
   incident: Incident;
   baseFilter: Filter;
   source: string | null;
+  /** The loaded timeseries, used to size the incident window by bucket width. */
+  points: TimePoint[];
   /** Left edge of the loaded data, to clamp the baseline window. */
   earliest?: string;
 }) {
   const kind = toSourceKind(source);
   const shown = useMemo(() => partitionDimensions(kind, LIFT_DIMS).supported, [kind]);
 
+  // Incident timestamps are bucket STARTs and time filtering is inclusive on
+  // both ends, so [startTime, endTime] omits the final bucket (and is
+  // zero-width for a single-bucket incident). Extend the end by one bucket so
+  // the whole incident - including its peak bucket - is queried.
+  const incidentTo = useMemo(() => {
+    const bucket = bucketWidthMs(points);
+    return new Date(Date.parse(incident.endTime) + bucket).toISOString();
+  }, [points, incident.endTime]);
+
+  // Baseline still ends where the incident truly begins (its start bucket).
   const baseline = useMemo(
-    () => baselineWindowFor(incident.startTime, incident.endTime, { earliest }),
-    [incident.startTime, incident.endTime, earliest],
+    () => baselineWindowFor(incident.startTime, incidentTo, { earliest }),
+    [incident.startTime, incidentTo, earliest],
   );
 
   const incidentFilter = useMemo(
-    () => withWindow(baseFilter, incident.startTime, incident.endTime),
-    [baseFilter, incident.startTime, incident.endTime],
+    () => withWindow(baseFilter, incident.startTime, incidentTo),
+    [baseFilter, incident.startTime, incidentTo],
   );
   const baselineFilter = useMemo(
     () => (baseline ? withWindow(baseFilter, baseline.from, baseline.to) : null),

@@ -141,7 +141,10 @@ export default function AnomaliesPage() {
   const anomalies = scoreMetricAnomaly(summary.data);
   const [metricParam, setMetric] = useQueryState("metric");
 
-  const points = ts.data ?? [];
+  // Stable reference so incident detection (and everything keyed off `points`)
+  // only recomputes when the timeseries actually changes, not on every render
+  // while the query is loading (`ts.data` is undefined then).
+  const points = useMemo(() => ts.data ?? [], [ts.data]);
   const incidents = useMemo(
     () => detectIncidentsForMetrics(points, METRIC_KEYS),
     [points],
@@ -251,6 +254,7 @@ export default function AnomaliesPage() {
           incident={activeIncident}
           baseFilter={fh.filter}
           source={reportedSource}
+          points={points}
           earliest={windowStart}
         />
       )}
