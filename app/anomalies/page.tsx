@@ -34,6 +34,7 @@ import { IncidentFeed } from "@/components/anomalies/incident-feed";
 import { IncidentTimeline } from "@/components/anomalies/incident-timeline";
 import { WhatsDifferent } from "@/components/anomalies/whats-different";
 import { ProxyPanel } from "@/components/anomalies/proxy-panel";
+import { AlertsPanel } from "@/components/anomalies/alerts-panel";
 import { WafSection } from "@/components/anomalies/waf-section";
 import {
   BreakdownPanel,
@@ -242,6 +243,8 @@ export default function AnomaliesPage() {
         </div>
         <ProxyPanel filter={fh.filter} />
       </div>
+
+      <AlertsPanel incidents={incidents} />
 
       {activeIncident && (
         <WhatsDifferent
