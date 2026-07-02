@@ -11,6 +11,7 @@ import {
 
 import {
   TIME_PRESETS,
+  clampRange,
   decodePathPattern,
   decodeStatus,
   emptyFilter,
@@ -166,7 +167,10 @@ export function useFilters() {
   );
 
   const setCustomRange = useCallback(
-    (from: string, to: string) => setRaw({ from, to }),
+    (from: string, to: string) => {
+      const r = clampRange(from, to);
+      setRaw({ from: r.from, to: r.to });
+    },
     [setRaw],
   );
 

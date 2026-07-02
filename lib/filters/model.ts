@@ -116,6 +116,31 @@ export function resolveTimeRange(f: Filter, now = new Date()): { from: Date; to:
   return { from: new Date(now.getTime() - span), to: now };
 }
 
+/**
+ * Smallest custom range we allow (60s = the smallest auto timeseries bucket, so
+ * a clamped window always spans at least one bucket).
+ */
+export const MIN_RANGE_MS = 60_000;
+
+/**
+ * Guard a custom [from, to] window so it always has real width. A zero-width or
+ * inverted range (e.g. "zoom to spike" on a single-bucket outlier, where the
+ * bucket-start timestamp is both endpoints) would otherwise match no rows and
+ * render an empty view. Expands `to` to `from + minMs` in that case. Unparseable
+ * inputs pass through untouched so callers/validators can handle them.
+ */
+export function clampRange(
+  from: string,
+  to: string,
+  minMs: number = MIN_RANGE_MS,
+): { from: string; to: string } {
+  const f = Date.parse(from);
+  const t = Date.parse(to);
+  if (Number.isNaN(f) || Number.isNaN(t)) return { from, to };
+  if (t - f >= minMs) return { from, to };
+  return { from: new Date(f).toISOString(), to: new Date(f + minMs).toISOString() };
+}
+
 // ----------------------------------------------------------------------------
 // URL (de)serialization - compact, human-readable query strings.
 // Path patterns encode as `mode:value` (optionally `!mode:value` for negate).

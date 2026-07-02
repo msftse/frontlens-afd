@@ -81,16 +81,43 @@ export function MetricTrend({
   const spikeFill = metric === "errorRate5xx" ? "var(--color-danger)" : "var(--color-warning)";
   const win = spike.window;
 
+  // Typical bucket width, used to frame the spike zoom. `points[i].t` is the
+  // bucket START, so the raw window [start, end] omits the final bucket and, for
+  // a single-bucket spike, collapses to zero width. Use the smallest positive gap
+  // between adjacent buckets: buckets are never closer than one interval, so this
+  // recovers the true bucket width even for sources that omit empty buckets
+  // (e.g. Log Analytics' bin()), where a median gap could overshoot. Fall back to
+  // an even split of the total span when there's only a single point.
+  const bucketMs = useMemo(() => {
+    if (points.length < 2) return spanMs;
+    let min = Infinity;
+    for (let i = 1; i < points.length; i++) {
+      const gap = Date.parse(points[i].t) - Date.parse(points[i - 1].t);
+      if (gap > 0 && gap < min) min = gap;
+    }
+    return Number.isFinite(min) ? min : spanMs / (points.length - 1);
+  }, [points, spanMs]);
+
+  /**
+   * Zoom to the spike, extended to cover the full last bucket plus one bucket of
+   * baseline on each side for context, clamped to the loaded data's edges. Always
+   * yields to > from (setCustomRange also guards this centrally).
+   */
+  const zoomToSpike = () => {
+    if (!win) return;
+    const firstT = Date.parse(points[0].t);
+    const lastT = Date.parse(points[points.length - 1].t);
+    const from = Math.max(firstT, Date.parse(points[win.startIdx].t) - bucketMs);
+    const to = Math.min(lastT + bucketMs, Date.parse(points[win.endIdx].t) + 2 * bucketMs);
+    onZoom(new Date(from).toISOString(), new Date(to).toISOString());
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">{cfg.label} over time</CardTitle>
         {win && (
-          <Button
-            size="sm"
-            variant="subtle"
-            onClick={() => onZoom(points[win.startIdx].t, points[win.endIdx].t)}
-          >
+          <Button size="sm" variant="subtle" onClick={zoomToSpike}>
             <Search className="size-3" />
             Zoom to spike
           </Button>

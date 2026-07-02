@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MIN_RANGE_MS,
+  clampRange,
   countActiveFacets,
   decodePathPattern,
   decodeStatus,
@@ -108,5 +110,49 @@ describe("resolveTimeRange", () => {
     const { from, to } = resolveTimeRange(filterSchema.parse({ range: "24h" }), now);
     expect(to).toEqual(now);
     expect(to.getTime() - from.getTime()).toBe(24 * 60 * 60 * 1000);
+  });
+});
+
+describe("clampRange", () => {
+  it("expands a zero-width range to the minimum span", () => {
+    const t = "2026-01-01T00:00:00.000Z";
+    const { from, to } = clampRange(t, t);
+    expect(from).toBe(t);
+    expect(Date.parse(to) - Date.parse(from)).toBe(MIN_RANGE_MS);
+  });
+
+  it("expands an inverted (to < from) range from `from`", () => {
+    const from = "2026-01-01T00:05:00.000Z";
+    const to = "2026-01-01T00:00:00.000Z";
+    const r = clampRange(from, to);
+    expect(r.from).toBe(from);
+    expect(Date.parse(r.to) - Date.parse(r.from)).toBe(MIN_RANGE_MS);
+  });
+
+  it("expands a sub-minimum range (< 60s) to the minimum span", () => {
+    const from = "2026-01-01T00:00:00.000Z";
+    const to = "2026-01-01T00:00:30.000Z"; // 30s < 60s
+    const r = clampRange(from, to);
+    expect(r.from).toBe(from);
+    expect(Date.parse(r.to) - Date.parse(r.from)).toBe(MIN_RANGE_MS);
+  });
+
+  it("leaves an already-wide range untouched", () => {
+    const from = "2026-01-01T00:00:00.000Z";
+    const to = "2026-01-02T00:00:00.000Z";
+    expect(clampRange(from, to)).toEqual({ from, to });
+  });
+
+  it("respects a custom minimum span", () => {
+    const from = "2026-01-01T00:00:00.000Z";
+    const r = clampRange(from, from, 5 * 60_000);
+    expect(Date.parse(r.to) - Date.parse(r.from)).toBe(5 * 60_000);
+  });
+
+  it("passes unparseable input through untouched", () => {
+    expect(clampRange("not-a-date", "also-bad")).toEqual({
+      from: "not-a-date",
+      to: "also-bad",
+    });
   });
 });
