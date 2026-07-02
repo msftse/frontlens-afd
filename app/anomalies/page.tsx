@@ -255,7 +255,6 @@ export default function AnomaliesPage() {
           baseFilter={fh.filter}
           source={reportedSource}
           points={points}
-          earliest={windowStart}
         />
       )}
 

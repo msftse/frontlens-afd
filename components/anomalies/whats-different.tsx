@@ -50,15 +50,12 @@ export function WhatsDifferent({
   baseFilter,
   source,
   points,
-  earliest,
 }: {
   incident: Incident;
   baseFilter: Filter;
   source: string | null;
   /** The loaded timeseries, used to size the incident window by bucket width. */
   points: TimePoint[];
-  /** Left edge of the loaded data, to clamp the baseline window. */
-  earliest?: string;
 }) {
   const kind = toSourceKind(source);
   const shown = useMemo(() => partitionDimensions(kind, LIFT_DIMS).supported, [kind]);
@@ -72,10 +69,15 @@ export function WhatsDifferent({
     return new Date(Date.parse(incident.endTime) + bucket).toISOString();
   }, [points, incident.endTime]);
 
-  // Baseline still ends where the incident truly begins (its start bucket).
+  // Baseline is the period immediately before the incident and ends at its start
+  // bucket. It is intentionally NOT clamped to the currently-loaded window:
+  // "Investigate" zooms the chart to the incident, so the loaded series no
+  // longer contains the pre-incident history the baseline needs. The datasource
+  // returns an empty result for any sub-range with no data, which computeLift
+  // handles gracefully.
   const baseline = useMemo(
-    () => baselineWindowFor(incident.startTime, incidentTo, { earliest }),
-    [incident.startTime, incidentTo, earliest],
+    () => baselineWindowFor(incident.startTime, incidentTo),
+    [incident.startTime, incidentTo],
   );
 
   const incidentFilter = useMemo(
