@@ -452,6 +452,48 @@ export function detectIncidentsForMetrics(
     .sort((a, b) => b.severity - a.severity);
 }
 
+/**
+ * The typical bucket width (ms) of a series: the smallest positive gap between
+ * adjacent bucket start times. Robust to sources that omit empty buckets (e.g.
+ * Log Analytics' bin()), where a median gap could overshoot. Falls back to an
+ * even split of the total span, or a default when there are too few points.
+ */
+export function bucketWidthMs(points: TimePoint[], fallback = 3_600_000): number {
+  if (points.length < 2) return fallback;
+  let min = Infinity;
+  for (let i = 1; i < points.length; i++) {
+    const gap = Date.parse(points[i].t) - Date.parse(points[i - 1].t);
+    if (gap > 0 && gap < min) min = gap;
+  }
+  if (Number.isFinite(min)) return min;
+  const span = Date.parse(points[points.length - 1].t) - Date.parse(points[0].t);
+  return span > 0 ? span / (points.length - 1) : fallback;
+}
+
+/**
+ * Padded [fromISO, toISO] window that frames a bucket range for "zoom to
+ * incident". Bucket timestamps are the bucket START, so the raw [start,end]
+ * omits the final bucket and collapses to zero width for a single bucket. We
+ * extend to cover the last bucket plus one baseline bucket on each side, clamped
+ * to the loaded data's edges. Always yields to > from.
+ */
+export function incidentZoomRange(
+  points: TimePoint[],
+  startIdx: number,
+  endIdx: number,
+): { from: string; to: string } | null {
+  if (points.length === 0) return null;
+  const lo = Math.max(0, Math.min(startIdx, points.length - 1));
+  const hi = Math.max(lo, Math.min(endIdx, points.length - 1));
+  const bucket = bucketWidthMs(points);
+  const firstT = Date.parse(points[0].t);
+  const lastT = Date.parse(points[points.length - 1].t);
+  const from = Math.max(firstT, Date.parse(points[lo].t) - bucket);
+  const to = Math.min(lastT + bucket, Date.parse(points[hi].t) + 2 * bucket);
+  const safeTo = to > from ? to : from + bucket;
+  return { from: new Date(from).toISOString(), to: new Date(safeTo).toISOString() };
+}
+
 // ---------------------------------------------------------------------------
 // Per-metric drill-down breakdown configuration ("what's driving it")
 // ---------------------------------------------------------------------------

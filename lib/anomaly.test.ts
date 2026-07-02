@@ -5,9 +5,11 @@ import {
   BREAKDOWNS,
   METRIC_CONFIG,
   bucketScores,
+  bucketWidthMs,
   detectIncidents,
   detectIncidentsForMetrics,
   detectSpikes,
+  incidentZoomRange,
   rollingBaseline,
   scoreMetricAnomaly,
   seriesFor,
@@ -514,5 +516,62 @@ describe("detectIncidentsForMetrics", () => {
       window: 6,
     });
     expect(feed).toEqual([]);
+  });
+});
+
+// --- bucketWidthMs / incidentZoomRange --------------------------------------
+
+describe("bucketWidthMs", () => {
+  it("falls back for too-few points", () => {
+    expect(bucketWidthMs([], 1234)).toBe(1234);
+    expect(bucketWidthMs(requestSeries([1]), 1234)).toBe(1234);
+  });
+
+  it("takes the smallest positive gap (robust to omitted empty buckets)", () => {
+    // series() spaces buckets 60s apart.
+    expect(bucketWidthMs(requestSeries([1, 2, 3, 4]))).toBe(60_000);
+  });
+
+  it("recovers a 60s width even when a bucket is skipped", () => {
+    const base = Date.parse("2026-06-01T00:00:00.000Z");
+    // Buckets at 0, 60s, 180s (120s hole) -> min positive gap is still 60s.
+    const pts = [
+      tp({ t: new Date(base).toISOString() }),
+      tp({ t: new Date(base + 60_000).toISOString() }),
+      tp({ t: new Date(base + 180_000).toISOString() }),
+    ];
+    expect(bucketWidthMs(pts)).toBe(60_000);
+  });
+});
+
+describe("incidentZoomRange", () => {
+  it("returns null for an empty series", () => {
+    expect(incidentZoomRange([], 0, 0)).toBeNull();
+  });
+
+  it("pads a single-bucket incident to a non-zero window within data bounds", () => {
+    const pts = requestSeries([10, 20, 30, 40, 50, 60]); // 6 buckets, 60s apart
+    const r = incidentZoomRange(pts, 2, 2);
+    expect(r).not.toBeNull();
+    const from = Date.parse(r!.from);
+    const to = Date.parse(r!.to);
+    expect(to).toBeGreaterThan(from);
+    // One bucket of padding before idx 2, clamped to the series edges.
+    expect(from).toBe(Date.parse(pts[1].t)); // idx2 start - 60s = idx1 start
+    // idx2 start + 2 buckets, clamped to lastT + 1 bucket.
+    expect(to).toBeLessThanOrEqual(Date.parse(pts[5].t) + 60_000);
+  });
+
+  it("clamps a span to the loaded window edges", () => {
+    const pts = requestSeries([10, 20, 30, 40]);
+    const r = incidentZoomRange(pts, 0, 3)!;
+    expect(Date.parse(r.from)).toBe(Date.parse(pts[0].t)); // can't pad before first
+    expect(Date.parse(r.to)).toBe(Date.parse(pts[3].t) + 60_000); // last + 1 bucket
+  });
+
+  it("tolerates out-of-order / out-of-range indices", () => {
+    const pts = requestSeries([10, 20, 30, 40]);
+    const r = incidentZoomRange(pts, 99, -5)!;
+    expect(Date.parse(r.to)).toBeGreaterThan(Date.parse(r.from));
   });
 });
